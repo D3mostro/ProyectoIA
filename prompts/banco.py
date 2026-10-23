@@ -1,15 +1,3 @@
-"""Bloque 10 - Banco de prompts del Planificador de astroturismo en Chile.
-
-Cada prompt tiene:
-  - nombre:             identificador corto
-  - system_instruction: instrucción estable (va en "systemInstruction")
-  - ejemplo_usuario:    una entrada de ejemplo (va en "contents")
-  - claves_esperadas:   claves que debe traer el JSON de salida
-  - response_schema:    forma exacta de la salida (se manda en "generationConfig")
-
-Los tipos del esquema van en MAYÚSCULAS: OBJECT, STRING, NUMBER, INTEGER, BOOLEAN, ARRAY.
-"""
-
 BANCO_DE_PROMPTS = [
     {
         "nombre": "clasificar_consulta",

@@ -108,13 +108,15 @@ Funciones principales de `src/consumir_gemini.py`:
 
 `prompts/test_consistencia.py` ejecuta cada prompt 3 veces y registra cuántas respuestas son JSON válido con las claves esperadas. Un prompt con menos de 2/3 debe ajustarse y volver a medirse.
 
-**Resultados de la última medición:** _pendiente de pegar desde `prompts/registro_resultados.json`_
+**Resultados de la última medición** (22-10-2026, `gemini-3.5-flash-lite`, 3 intentos por prompt, sin errores):
 
 | Prompt | Válidas |
 |---|---|
-| `clasificar_consulta` | _/3 |
-| `extraer_datos_consulta` | _/3 |
-| `resumir_texto` | _/3 |
+| `clasificar_consulta` | 3/3 |
+| `extraer_datos_consulta` | 3/3 |
+| `resumir_texto` | 3/3 |
+
+El detalle queda en `prompts/registro_resultados.json`. Con 3 intentos la medida es una primera evidencia, no una garantía: conviene repetirla al cambiar un prompt o el modelo.
 
 ## Decisión de modelo
 

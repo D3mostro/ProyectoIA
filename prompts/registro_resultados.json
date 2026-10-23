@@ -1,0 +1,21 @@
+{
+  "modelo": "gemini-3.5-flash-lite",
+  "fecha": "2026-10-22",
+  "prompts": {
+    "clasificar_consulta": {
+      "exitos": 3,
+      "intentos": 3,
+      "errores": []
+    },
+    "extraer_datos_consulta": {
+      "exitos": 3,
+      "intentos": 3,
+      "errores": []
+    },
+    "resumir_texto": {
+      "exitos": 3,
+      "intentos": 3,
+      "errores": []
+    }
+  }
+}

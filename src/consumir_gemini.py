@@ -60,7 +60,7 @@ def extraer_texto(datos):#Gemini devuelve un diccionario con la respuesta, de la
 
 
 #Funcion limpia y valida la respuesta JSON del modelo
-def parsear_respuesta_json(texto, claves_esperadas=("categoria", "confianza")):
+def parsear_respuesta_json(texto, claves_requeridas=None):
     texto_limpio = texto.strip()
     texto_limpio = re.sub(r"^```(?:json)?\s*", "", texto_limpio)#quita ```json o ``` al inicio
     texto_limpio = re.sub(r"\s*```$", "", texto_limpio)#quita ``` al final
@@ -68,8 +68,12 @@ def parsear_respuesta_json(texto, claves_esperadas=("categoria", "confianza")):
         datos = json.loads(texto_limpio)
     except json.JSONDecodeError:
         raise ValueError("La respuesta del modelo no es JSON válido.")
-    if not isinstance(datos, dict) or any(clave not in datos for clave in claves_esperadas):
-        raise ValueError("La respuesta no tiene la estructura esperada.")
+    if not isinstance(datos, dict):
+        raise ValueError("La respuesta no es un objeto JSON.")
+    if claves_requeridas:
+        faltantes = [c for c in claves_requeridas if c not in datos]
+        if faltantes:
+            raise ValueError(f"La respuesta no tiene la estructura esperada. Faltan: {faltantes}")
     return datos
 
 
@@ -130,7 +134,7 @@ if __name__ == "__main__":  # solo corre al ejecutar este archivo, no al importa
     }
     try:
         texto = obtener_dato_de_prueba("¿Puedo ver las Perseidas desde el Valle del Elqui?", system_json, esquema)
-        datos = parsear_respuesta_json(texto)
+        datos = parsear_respuesta_json(texto, ["categoria", "confianza"])
         print(datos)
         print(type(datos))
     except (ValueError, RuntimeError) as error:
