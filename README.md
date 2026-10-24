@@ -12,14 +12,14 @@ Miniaplicación en Python que consume la API de Google Gemini para responder con
 - Una llave de API de Gemini (gratis en [Google AI Studio](https://aistudio.google.com/apikey)).
 - Git.
 
-## Instalación (desde cero)
+## Instalación
 
 Los comandos son para **Windows (PowerShell)**; entre paréntesis, el equivalente en Linux/macOS.
 
 ```powershell
 # 1. Clonar el repositorio
-git clone <URL-DEL-REPOSITORIO>
-cd <carpeta-del-repositorio>
+git clone https://github.com/D3mostro/ProyectoIA.git
+cd ProyectoIA
 
 # 2. Crear y activar el entorno virtual
 python -m venv .venv
@@ -78,9 +78,10 @@ Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en
 El proyecto llama a la **API REST de Gemini con `requests`** (no usa el SDK `google-genai`, aunque esté listado en `requirements.txt` por el entorno del curso). Flujo:
 
 ```
-pregunta → armar_peticion → enviar_peticion → extraer_texto → parsear_respuesta_json
-                                     │
-                                     └→ calcular_costo (usageMetadata)
+pregunta + systemInstruction (+ responseSchema)
+   → armar_peticion → enviar_peticion → extraer_texto → parsear_respuesta_json → respuesta
+                            │
+                            └→ calcular_costo (usageMetadata) → costo en USD
 ```
 
 Funciones principales de `src/consumir_gemini.py`:
@@ -118,6 +119,8 @@ Funciones principales de `src/consumir_gemini.py`:
 
 El detalle queda en `prompts/registro_resultados.json`. Con 3 intentos la medida es una primera evidencia, no una garantía: conviene repetirla al cambiar un prompt o el modelo.
 
+La medición se repitió el **24-10-2026** en una instalación limpia (ver [Registro de ensayo de instalación limpia](#registro-de-ensayo-de-instalación-limpia)) y dio el mismo resultado: 3/3 en los tres prompts, 9/9 en total.
+
 ## Decisión de modelo
 
 Se eligió **`gemini-3.5-flash-lite`** frente a `gemini-3.1-flash-lite` y `gemini-3.8-flash` (medición del 20-10-2026):
@@ -141,6 +144,7 @@ Prima la latencia (demo en vivo). La limitación conocida es la calidad (inventa
 
 | Síntoma | Causa probable | Qué hacer |
 |---|---|---|
+| `Activate.ps1 no se puede cargar porque la ejecución de scripts está deshabilitada` | Política de ejecución de PowerShell | Ejecutar `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` y volver a activar el `.venv` |
 | `ModuleNotFoundError: No module named 'dotenv'` | Entorno sin dependencias | Activar `.venv` y ejecutar `pip install -r requirements.txt` |
 | Mensaje de llave no encontrada | Falta `.env` o la variable | Copiar `.env.example` a `.env` y poner `GEMINI_API_KEY` |
 | `Status Code: 400` | Petición mal formada (p. ej. `system_instruction` en vez de `systemInstruction`) | Revisar los nombres de campo en camelCase |
@@ -149,15 +153,52 @@ Prima la latencia (demo en vivo). La limitación conocida es la calidad (inventa
 | `Status Code: 503` | Servicio saturado | Reintentar en unos segundos |
 | `La respuesta del modelo no es JSON válido` | El modelo devolvió texto libre | Revisar la system instruction y el `responseSchema` |
 
-## Registro de ensayo de instalación limpia
+## Pruebas de reproducción del entorno
 
-Requisito del Gate 1: demostrar que el README permite instalar y ejecutar sin ayuda.
+El Gate 1 tiene cuatro condiciones no compensables. Tres de ellas se demuestran reproduciendo el proyecto desde cero: que el código corra contra la API real, que el entorno se pueda reconstruir solo con `requirements.txt`, y que las credenciales nunca hayan salido de `.env`. Esta sección registra esas pruebas. La cuarta condición, el repositorio accesible, se cumple porque el repositorio es público.
 
-- Fecha: _pendiente_
-- Entorno (sistema operativo, versión de Python): _pendiente_
-- Pasos seguidos: clonar → `venv` → `pip install -r requirements.txt` → `.env` → `python src/consumir_gemini.py`
-- Resultado: _pendiente_
-- Problemas encontrados y correcciones al README: _pendiente_
+### 1. Código ejecutable contra la API real
+
+Ejecutado el 24-10-2026 sobre el clon limpio, con una llave real en `.env` y sin tocar el código:
+
+| Comando | Resultado |
+|---|---|
+| `python src/consumir_gemini.py` | Sin `Traceback`. Respondió las dos pruebas con latencias de 1,09 s y 0,99 s y costos de 0,000038 y 0,000069 USD. La salida estructurada se parseó como `dict` con las claves esperadas: `{'categoria': 'observacion', 'confianza': 0.95}`. Recorre `armar_peticion` → `enviar_peticion` → `extraer_texto` → `parsear_respuesta_json` de punta a punta. |
+| `python prompts/test_consistencia.py` | 9/9 respuestas válidas (3/3 en cada prompt), sin errores. Regeneró `prompts/registro_resultados.json`. |
+| `python src/comparar_modelos.py` | Midió `gemini-3.1-flash-lite` (5,90 s) y `gemini-3.5-flash-lite` (1,03 s). `gemini-3.8-flash` devolvió `503`; el reintento con backoff (1, 2, 4 y 8 s) actuó como está documentado y el script terminó sin caerse. |
+
+### 2. Entorno reproducible
+
+- `requirements.txt` se generó con `pip freeze`. Para comprobar que está completo, se instaló en un entorno virtual nuevo y se comparó `pip freeze` de ese entorno con el archivo: son **idénticos** (26 paquetes con versión fijada).
+- El ensayo de instalación limpia se hizo en una carpeta nueva, sin el proyecto ni dependencias instaladas de antes, siguiendo solo este README.
+
+### Registro de ensayo de instalación limpia
+
+- **Fecha:** 24-10-2026 (Linux, Python 3.13.17, carpeta nueva clonada desde GitHub, siguiendo exactamente [Instalación (desde cero)](#instalación-desde-cero) y [Cómo ejecutar](#cómo-ejecutar)).
+- **Encontrado:** la instalación funcionó tal como está escrita. En un ensayo previo sin llave válida, un error de llave solo mostraba `Status Code: 400`, aunque el README promete un mensaje claro.
+- **Corregido:** `src/consumir_gemini.py` ahora indica claramente si la llave falta o no es válida.
+- **Resultado tras la corrección:** exitoso. Las 26 dependencias se instalaron sin conflictos y los tres comandos corrieron con llamadas reales a la API (ver la tabla del punto 1).
+
+| Fecha | Entorno | Quién | Resultado |
+|---|---|---|---|
+| 24-10-2026 | Windows, PowerShell, carpeta nueva | Germán Spuler, clonando desde GitHub | Exitoso, sin incidencias |
+
+### 3. Credenciales protegidas
+
+Verificado el 24-10-2026 sobre el clon del repositorio:
+
+| Comprobación | Comando | Resultado |
+|---|---|---|
+| `.env` está ignorado | revisar `.gitignore` | Contiene la línea `.env` |
+| Existe la plantilla sin secretos | revisar `.env.example` | Solo trae `GEMINI_API_KEY=tu_llave_aqui_como_ejemplo` |
+| `.env` no queda para subir | `git status` | Con `.env` creado, no aparece |
+| `.env` nunca se subió | `git log --all --oneline -- .env` | Sin resultados |
+| No hay llaves en el historial | búsqueda de `AIza` en `git log -p --all` | 0 coincidencias |
+
+### Observaciones
+
+- El `503` de `gemini-3.8-flash` confirma que ese modelo es inestable en el nivel gratuito, igual que en la medición del 20-10-2026 (ahí fue `429`). La tabla de [Decisión de modelo](#decisión-de-modelo) ya lo refleja.
+- Las latencias de este ensayo son menores que las del 20-10-2026 (1,03 s frente a 1,51 s para el modelo elegido). Dependen de la red y de la carga del servicio; lo que sostiene la decisión es que el orden entre los modelos se mantiene.
 
 ## Hoja de ruta
 
