@@ -32,12 +32,12 @@ def armar_peticion(pregunta, modelo=MODELO, system_instruction=None):#pregunta="
 def enviar_peticion(url, body):
     try:
         respuesta = requests.post(url, json=body, timeout=30)
-    except requests.Timeout:
-        raise RuntimeError("La solicitud ha excedido el tiempo de espera. Intenta de nuevo en unos momentos.")
-    except requests.RequestException:
-        raise RuntimeError("No se pudo conectar con el servicio. Intenta de nuevo en unos momentos.")
+    except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+        # Fallas momentáneas de red: TimeoutError para que con_reintento (cliente.py) las reintente
+        raise TimeoutError("No se pudo contactar al proveedor. Puede ser momentáneo.")
 
-    if respuesta.status_code in(401, 403):
+    # Gemini responde una key inválida con 400 + "API_KEY_INVALID" (no con 401/403)
+    if respuesta.status_code in(401, 403) or (respuesta.status_code == 400 and "API_KEY_INVALID" in respuesta.text):
         raise ValueError("Credencial inválida o sin permiso. Revisa tu GEMINI_API_KEY")    
     if respuesta.status_code >= 500:
         raise TimeoutError("El proveedor del servicio no pudo procesar la peticion. Intenta de nuevo en unos momentos.")
@@ -100,5 +100,5 @@ if __name__ == "__main__":  # solo corre al ejecutar este archivo, no al importa
             "Como estara el cielo en santiago mañana para ver las estrellas como astroturismo",
             system_instruction,
         ))
-    except (ValueError, RuntimeError) as error:
+    except (ValueError, RuntimeError, TimeoutError) as error:
         print("no se pudo completar la operacion: ", error)
