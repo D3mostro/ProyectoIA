@@ -1,12 +1,3 @@
-"""Bloque 10 - Prueba de consistencia del banco de prompts.
-
-Ejecuta cada prompt de BANCO_DE_PROMPTS varias veces contra la API real y
-cuenta cuántas respuestas son JSON válido con las claves esperadas.
-Guarda el resultado en prompts/registro_resultados.json (esa es la evidencia).
-
-Ejecutar desde la raíz del repositorio, con el .venv activo:
-    python prompts/test_consistencia.py
-"""
 import json
 import sys
 import time

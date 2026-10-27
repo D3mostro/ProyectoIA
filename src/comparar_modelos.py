@@ -1,11 +1,3 @@
-"""Bloque 9 - Tabla comparativa de tres modelos candidatos.
-
-Mide latencia promedio (misma pregunta, 4 repeticiones) y muestra las
-respuestas a 3 preguntas reales para evaluar calidad. Al final imprime
-la tabla en Markdown para pegarla en docs/decision-arquitectura.md.
-
-Ejecutar desde la carpeta src:  python comparar_modelos.py
-"""
 import time
 from datetime import date
 
