@@ -1,0 +1,23 @@
+[
+  {
+    "consulta": "¿Por qué el norte de Chile es bueno para observar estrellas?",
+    "referencia": "El norte de Chile tiene cielos despejados, aire seco, altura y poca contaminación lumínica.",
+    "respuesta": "El norte de Chile es ideal para la observación estelar debido a sus cielos extremadamente despejados, su baja humedad y la casi total ausencia de contaminación lumínica en gran parte de su territorio.",
+    "coincidencia_crudo": 0.571,
+    "coincidencia_procesado": 0.643
+  },
+  {
+    "consulta": "¿Qué es la contaminación lumínica?",
+    "referencia": "La contaminación lumínica es el exceso de luz artificial que ilumina el cielo nocturno y oculta las estrellas.",
+    "respuesta": "La contaminación lumínica es el brillo artificial excesivo del cielo nocturno generado por un uso ineficiente de la iluminación urbana.",
+    "coincidencia_crudo": 0.529,
+    "coincidencia_procesado": 0.529
+  },
+  {
+    "consulta": "¿Qué es una lluvia de meteoros?",
+    "referencia": "Una lluvia de meteoros ocurre cuando la Tierra cruza los restos que deja un cometa y esas partículas se queman en la atmósfera.",
+    "respuesta": "Es un fenómeno astronómico en el que numerosos meteoros cruzan el cielo nocturno al entrar la Tierra en los restos polvorientos dejados por un cometa.",
+    "coincidencia_crudo": 0.364,
+    "coincidencia_procesado": 0.409
+  }
+]
