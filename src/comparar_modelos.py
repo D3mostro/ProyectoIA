@@ -38,9 +38,9 @@ def enviar_con_reintentos(url, body):
             datos = enviar_peticion(url, body)
             fin = time.perf_counter()
             return datos, fin - inicio
-        except RuntimeError as error:
-            saturado = "429" in str(error) or "503" in str(error)
-            if not saturado or intento == MAX_REINTENTOS:
+        except TimeoutError as error:
+            # Desde el Bloque 12, enviar_peticion lanza TimeoutError ante 429, 5xx o falla de red
+            if intento == MAX_REINTENTOS:
                 raise
             print(f"  ({error}) -> reintentando en {espera} s...")
             time.sleep(espera)
@@ -98,7 +98,7 @@ if __name__ == "__main__":
     for modelo, (precio_entrada, precio_salida) in CANDIDATOS.items():
         try:
             latencias[modelo] = medir_modelo(modelo, precio_entrada, precio_salida)
-        except (ValueError, RuntimeError) as error:
+        except (ValueError, RuntimeError, TimeoutError) as error:
             # Si un modelo falla, se anota y se sigue con los demás
             print(f"No se pudo medir {modelo}: {error}")
             latencias[modelo] = None
