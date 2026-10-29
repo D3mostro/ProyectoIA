@@ -32,8 +32,8 @@ def probar_prompt(prompt):
             texto = extraer_texto(datos_respuesta)
             parsear_respuesta_json(texto, prompt["claves_esperadas"])
             exitos += 1
-        except (ValueError, RuntimeError) as error:
-            # ValueError: JSON inválido o sin las claves. RuntimeError: fallo de red/HTTP/formato de la API
+        except (ValueError, RuntimeError, TimeoutError) as error:
+            # ValueError: JSON inválido o sin las claves. RuntimeError: fallo de HTTP/formato de la API. TimeoutError: se agotaron los reintentos
             print(f"  intento {intento} falló: {error}")
             errores.append(f"intento {intento}: {error}")
         time.sleep(PAUSA)

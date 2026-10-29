@@ -13,8 +13,8 @@ URL_BASE = "https://generativelanguage.googleapis.com/v1beta/models/"
 API_KEY = os.getenv("GEMINI_API_KEY")
 
 #FUNCION PARA CREAR la solicitud
-#system_instruction es opcional: si no se pasa, la petición queda igual que antes (así comparar_modelos.py sigue funcionando)
-def armar_peticion(pregunta, modelo=MODELO, system_instruction=None):#pregunta="Confirma la xonexion con la api"
+#system_instruction y response_schema son opcionales: si no se pasan, la petición queda igual que antes (así comparar_modelos.py sigue funcionando)
+def armar_peticion(pregunta, modelo=MODELO, system_instruction=None, response_schema=None):#pregunta="Confirma la xonexion con la api"
     if not pregunta:
         raise ValueError("La pregunta no puede estar vacía.")
     url = f"{URL_BASE}{modelo}:generateContent?key={API_KEY}"#url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key=API_KEY"
@@ -26,6 +26,12 @@ def armar_peticion(pregunta, modelo=MODELO, system_instruction=None):#pregunta="
     if system_instruction:
         # Ojo: el campo JSON es "systemInstruction" (camelCase); "system_instruction" da HTTP 400 "Unknown name"
         body["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+    if response_schema is not None:
+        # Salida estructurada: la API aplica el esquema al generar (no es solo una sugerencia en el texto)
+        body["generationConfig"] = {
+            "responseMimeType": "application/json",
+            "responseSchema": response_schema,
+        }
     return url, body
 
 #Funcion envía petición
@@ -59,7 +65,25 @@ def extraer_texto(datos):#Gemini devuelve un diccionario con la respuesta, de la
     try:
         return datos["candidates"][0]["content"]["parts"][0]["text"]
     except (KeyError, IndexError):
-        raise RuntimeError("La respuesta no contiene el formato esperado. Intenta de nuevo en unos momentos.")    
+        raise RuntimeError("La respuesta no contiene el formato esperado. Intenta de nuevo en unos momentos.")
+
+
+#Funcion limpia y valida la respuesta JSON del modelo (Bloque 10)
+def parsear_respuesta_json(texto, claves_requeridas=None):
+    texto_limpio = texto.strip()
+    texto_limpio = re.sub(r"^```(?:json)?\s*", "", texto_limpio)#quita ```json o ``` al inicio
+    texto_limpio = re.sub(r"\s*```$", "", texto_limpio)#quita ``` al final
+    try:
+        datos = json.loads(texto_limpio)
+    except json.JSONDecodeError:
+        raise ValueError("La respuesta del modelo no es JSON válido.")
+    if not isinstance(datos, dict):
+        raise ValueError("La respuesta no es un objeto JSON.")
+    if claves_requeridas:
+        faltantes = [c for c in claves_requeridas if c not in datos]
+        if faltantes:
+            raise ValueError(f"La respuesta no tiene la estructura esperada. Faltan: {faltantes}")
+    return datos
 
 
 def obtener_dato_de_prueba(pregunta, system_instruction=None):
