@@ -64,7 +64,7 @@ Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en
 │   ├── test_consistencia.py   # Ejecuta cada prompt varias veces y cuenta respuestas válidas
 │   └── registro_resultados.json   # (se genera al ejecutar la prueba)
 ├── docs/
-│   ├── Desicion_arquitectura.md   # Elección del modelo y su justificación
+│   ├── decision-arquitectura.md   # Elección del modelo y su justificación
 │   ├── diagrama_arquitectura.png  # Diagrama del flujo de la aplicación
 │   └── Evidencia_conexion_Autenticada_Gemini.png
 ├── tests/                     # Reservada para pruebas automatizadas (Gate 2 en adelante)
@@ -131,7 +131,7 @@ Se eligió **`gemini-3.5-flash-lite`** frente a `gemini-3.1-flash-lite` y `gemin
 | **`gemini-3.5-flash-lite`** | **1,51 s** | 3/6 | Sin errores; el más rápido y estable |
 | `gemini-3.8-flash` | 15,65 s | no evaluable | Error 429 en el nivel gratuito |
 
-Prima la latencia (demo en vivo). La limitación conocida es la calidad (inventa datos en algunas preguntas), que se compensará en el Gate 2 con herramientas y RAG. Detalle completo, tarifas y fuentes en [`docs/Desicion_arquitectura.md`](docs/Desicion_arquitectura.md).
+Prima la latencia (demo en vivo). La limitación conocida es la calidad (inventa datos en algunas preguntas), que se compensará en el Gate 2 con herramientas y RAG. Detalle completo, tarifas y fuentes en [`docs/decision-arquitectura.md`](docs/decision-arquitectura.md).
 
 ## Seguridad
 
