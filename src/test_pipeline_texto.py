@@ -1,10 +1,3 @@
-"""Bloque 15 - Pruebas unitarias del pipeline de texto (pipeline_texto.py).
-
-No necesitan mocks: el pipeline no toca la red.
-
-Ejecutar desde la carpeta src, con el .venv activo:
-    python -m pytest test_pipeline_texto.py -v
-"""
 from collections import Counter
 
 import pytest

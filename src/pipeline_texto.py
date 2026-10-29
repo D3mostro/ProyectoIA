@@ -1,21 +1,12 @@
-"""Bloque 15 - Pipeline de limpieza y tokenización de texto.
-
-Deja el texto en un formato comparable (minúsculas, sin puntuación, sin espacios
-repetidos) antes de calcular cualquier métrica sobre las salidas del cliente.
-
-Ejecutar desde la carpeta src, con el .venv activo:
-    python pipeline_texto.py
-"""
 import json
 import re
 from collections import Counter
 from pathlib import Path
-
 from cliente import consultar_modelo
 
 
 def limpiar_texto(texto: str) -> str:
-    """Normaliza el texto: minúsculas y sin puntuación."""
+    "Normaliza el texto: minúsculas y sin puntuación."
     if not isinstance(texto, str):
         tipo = type(texto).__name__
         raise TypeError(f"limpiar_texto espera str, no {tipo}")
@@ -32,17 +23,17 @@ def tokenizar(texto_limpio: str) -> list[str]:
 
 
 def procesar_texto(texto: str) -> list[str]:
-    """Limpia y tokeniza en un solo paso, para no olvidar ninguno de los dos."""
+    "Limpia y tokeniza en un solo paso, para no olvidar ninguno de los dos."
     return tokenizar(limpiar_texto(texto))
 
 
 def vectorizar(tokens: list[str]) -> Counter:
-    """Cuenta cuántas veces aparece cada token (bolsa de palabras)."""
+    "Cuenta cuántas veces aparece cada token (bolsa de palabras)."
     return Counter(tokens)
 
 
 def calcular_coincidencia(tokens_referencia: list[str], tokens_respuesta: list[str]) -> float:
-    """Proporción de palabras distintas de la referencia que también aparecen en la respuesta."""
+    "Proporción de palabras distintas de la referencia que también aparecen en la respuesta."
     if not tokens_referencia:
         return 0.0  # referencia vacía (o solo puntuación): evita la división por cero
     comunes = set(tokens_referencia) & set(tokens_respuesta)

@@ -1,10 +1,3 @@
-"""Bloque 14 - Pruebas unitarias del cliente modular (cliente.py).
-
-Todas usan mocks: no llaman a la API real ni esperan con time.sleep real.
-
-Ejecutar desde la carpeta src, con el .venv activo:
-    python -m pytest test_cliente.py -v
-"""
 from unittest.mock import patch, Mock
 
 import pytest
