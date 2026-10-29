@@ -1,8 +1,8 @@
 # Planificador de astroturismo en Chile
 
-Miniaplicación en Python que consume la API de Google Gemini para responder consultas de astroturismo en Chile (qué se puede ver en un lugar y fecha, y cuándo conviene observar). Proyecto de la **Especialización en Desarrollo con IA Generativa (Accenture / Skillnest)**, Módulo 1.
+Miniaplicación en Python que consume la API de Google Gemini para responder consultas de astroturismo en Chile (qué se puede ver en un lugar y fecha, y cuándo conviene observar). Proyecto de la **Especialización en Desarrollo con IA Generativa (Accenture / Skillnest)**, Módulos 1 y 2.
 
-> **Estado actual (Gate 1):** conexión autenticada a Gemini, salida estructurada en JSON validada, banco de prompts con prueba de consistencia y comparación de modelos documentada. Todavía **no** hay interfaz, herramientas ni RAG (ver [Hoja de ruta](#hoja-de-ruta)).
+> **Estado actual (camino al Gate 2):** Gate 1 entregado (conexión autenticada a Gemini, banco de prompts con prueba de consistencia y comparación de modelos documentada). En el Módulo 2 se agregaron un cliente modular con reintentos y backoff exponencial, registro de costo por operación, pruebas unitarias con `pytest`, un pipeline de limpieza de texto y métricas de precisión, cobertura y F1 sobre las salidas del modelo. Todavía **no** hay interfaz, herramientas ni RAG (ver [Hoja de ruta](#hoja-de-ruta)).
 
 ---
 
@@ -46,11 +46,30 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 
 | Qué hace | Comando |
 |---|---|
-| Prueba de conexión: una pregunta limitada a 5 palabras y una clasificación en JSON (muestra latencia y costo) | `python src/consumir_gemini.py` |
+| Prueba de conexión: una consulta de astroturismo con *system instruction* (muestra latencia y costo) | `python src/consumir_gemini.py` |
 | Comparación de los tres modelos candidatos (latencia y respuestas) | `python src/comparar_modelos.py` |
 | Prueba de consistencia del banco de prompts (3 intentos por prompt; guarda `prompts/registro_resultados.json`) | `python prompts/test_consistencia.py` |
+| Ensayo de rate limit: 10 consultas seguidas con reintento y costo acumulado (Bloque 13) | `python src/cliente.py` |
+| Pipeline de texto: coincidencia de palabras antes y después de limpiar (guarda `src/registro_pipeline_texto.json`) | `python src/pipeline_texto.py` |
+| Métricas de precisión, cobertura y F1 sobre 3 respuestas reales (guarda `src/resultados_metricas.json`) | `python src/metricas.py` |
 
 Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en segundos y el costo estimado en USD. Si la llave falta o es incorrecta, el programa lo informa con un mensaje claro.
+
+### Pruebas unitarias
+
+Las pruebas usan mocks (no llaman a la API ni gastan cuota) y viven en `src/`, junto al código que prueban, como indica el curso. Se corren desde la raíz del repositorio:
+
+```powershell
+python -m pytest -v
+```
+
+| Archivo | Qué prueba |
+|---|---|
+| `test_cliente.py` | Clasificación de errores HTTP, reintento con backoff, registro de costo y `consultar_modelo` |
+| `test_pipeline_texto.py` | Limpieza, tokenización, bolsa de palabras y coincidencia |
+| `test_metricas.py` | Precisión, cobertura, F1, casos vacíos, resumen, peores casos y los tres límites de la métrica (sinónimo, dato equivocado, negación) |
+
+`pytest.ini` limita la búsqueda a `src/` (`testpaths = src`). Así `pytest` no recolecta `prompts/test_consistencia.py`, que no es una prueba unitaria (llama a la API real). También funciona `cd src` y luego `python -m pytest -v`.
 
 ## Estructura del repositorio
 
@@ -58,7 +77,15 @@ Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en
 .
 ├── src/
 │   ├── consumir_gemini.py     # Cliente de Gemini: arma, envía y valida peticiones
-│   └── comparar_modelos.py    # Mide latencia de los modelos candidatos (con reintentos)
+│   ├── comparar_modelos.py    # Mide latencia de los modelos candidatos
+│   ├── cliente.py             # Cliente modular: reintento con backoff y registro de costo
+│   ├── pipeline_texto.py      # Limpieza, tokenización y bolsa de palabras
+│   ├── metricas.py            # Precisión, cobertura y F1 sobre las salidas del modelo
+│   ├── test_cliente.py        # Pruebas unitarias (pytest)
+│   ├── test_pipeline_texto.py
+│   ├── test_metricas.py
+│   ├── registro_pipeline_texto.json   # (se genera al ejecutar pipeline_texto.py)
+│   └── resultados_metricas.json       # (se genera al ejecutar metricas.py)
 ├── prompts/
 │   ├── banco.py               # Banco de prompts: system instruction + esquema JSON
 │   ├── test_consistencia.py   # Ejecuta cada prompt varias veces y cuenta respuestas válidas
@@ -67,7 +94,8 @@ Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en
 │   ├── decision-arquitectura.md   # Elección del modelo y su justificación
 │   ├── diagrama_arquitectura.png  # Diagrama del flujo de la aplicación
 │   └── Evidencia_conexion_Autenticada_Gemini.png
-├── tests/                     # Reservada para pruebas automatizadas (Gate 2 en adelante)
+├── tests/                     # Viene de la plantilla del curso; hoy vacía (las pruebas están en src/)
+├── pytest.ini                 # Indica a pytest que las pruebas están en src/
 ├── requirements.txt           # Dependencias fijadas
 ├── .env.example               # Plantilla de variables de entorno (sin secretos)
 └── .gitignore
@@ -78,10 +106,10 @@ Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en
 El proyecto llama a la **API REST de Gemini con `requests`** (no usa el SDK `google-genai`, aunque esté listado en `requirements.txt` por el entorno del curso). Flujo:
 
 ```
-pregunta + systemInstruction (+ responseSchema)
-   → armar_peticion → enviar_peticion → extraer_texto → parsear_respuesta_json → respuesta
-                            │
-                            └→ calcular_costo (usageMetadata) → costo en USD
+consultar_modelo(pregunta, system_instruction)          ← cliente.py
+   → armar_peticion → con_reintento(enviar_peticion) → extraer_texto → respuesta
+                                │
+                                └→ registrar_costo → calcular_costo (usageMetadata) → costo en USD
 ```
 
 Funciones principales de `src/consumir_gemini.py`:
@@ -89,13 +117,28 @@ Funciones principales de `src/consumir_gemini.py`:
 | Función | Responsabilidad |
 |---|---|
 | `armar_peticion(pregunta, modelo, system_instruction, response_schema)` | Construye la URL y el body. Lanza `ValueError` si la pregunta está vacía. Agrega `systemInstruction` y `generationConfig` (JSON + esquema) cuando se entregan. |
-| `enviar_peticion(url, body)` | Hace el POST. Lanza `RuntimeError` ante timeout, falla de conexión, código HTTP distinto de 200 o respuesta que no es JSON. |
-| `extraer_texto(datos)` | Obtiene el texto de la respuesta del modelo. |
-| `parsear_respuesta_json(texto, claves_requeridas)` | Quita las vallas \`\`\`json, hace `json.loads`, exige que sea un objeto y que tenga las claves esperadas. Lanza `ValueError` si no cumple. |
-| `calcular_costo(...)` | Estima el costo en USD con `usageMetadata` (tokens de entrada, salida y de razonamiento). |
+| `enviar_peticion(url, body)` | Hace el POST. Lanza `TimeoutError` ante timeout, falla de conexión, `429` o error `5xx` (fallas momentáneas, se pueden reintentar); `ValueError` ante llave inválida o sin permiso (`401`, `403` o `400 API_KEY_INVALID`); `RuntimeError` ante otro código distinto de 200 o respuesta que no es JSON. |
+| `extraer_texto(datos)` | Obtiene el texto de la respuesta del modelo. Lanza `RuntimeError` si no tiene el formato esperado. |
+| `parsear_respuesta_json(texto, claves_requeridas)` | Quita las vallas \`\`\`json, hace `json.loads`, exige que sea un objeto y que tenga las claves esperadas. Lanza `ValueError` si no cumple. La usa `prompts/test_consistencia.py`. |
+| `calcular_costo(datos, precio_entrada, precio_salida)` | Estima el costo en USD con `usageMetadata` (tokens de entrada, salida y de razonamiento). |
 | `obtener_dato_de_prueba(...)` | Función de demostración: envía, mide latencia, imprime costo. |
 
-**Criterio de errores:** `ValueError` = el contenido está mal (pregunta vacía, JSON inválido, faltan claves); `RuntimeError` = falló la comunicación con la API. Así cada capa sabe qué hacer en cada caso.
+Funciones de `src/cliente.py` (Bloques 12 y 13):
+
+| Función | Responsabilidad |
+|---|---|
+| `con_reintento(funcion, intentos=3, espera_base=2, espera_maxima=30)` | Reintenta solo ante `TimeoutError`, con backoff exponencial (2, 4, 8 s…, con techo de 30 s) y un jitter de hasta 10 %. Los demás errores pasan sin reintentar. |
+| `registrar_costo(respuesta)` | Calcula el costo de la operación con los precios de `gemini-3.5-flash-lite` y lo suma a `costo_total_sesion`. |
+| `consultar_modelo(pregunta, system_instruction="")` | Punto de entrada del cliente. Si se agotan los reintentos lanza `RuntimeError`; registra el costo solo tras una respuesta exitosa. |
+
+**Criterio de errores:** `ValueError` = el contenido o la credencial están mal (no tiene sentido reintentar); `TimeoutError` = falla momentánea del proveedor (se reintenta); `RuntimeError` = falló la comunicación de forma definitiva. Así cada capa sabe qué hacer en cada caso.
+
+### Pipeline de texto y métricas (Bloques 15 y 16)
+
+- `src/pipeline_texto.py`: `limpiar_texto` (minúsculas, sin puntuación, conserva tildes, ñ y números; `TypeError` si no recibe texto), `tokenizar`, `procesar_texto` (los dos pasos juntos), `vectorizar` (bolsa de palabras con `Counter`) y `calcular_coincidencia`.
+- `src/metricas.py`: `calcular_precision_cobertura_f1` (cuenta repeticiones con la intersección de `Counter`; devuelve 0.0 si algún texto está vacío), `calcular_metricas`, `resumir_metricas` (promedios) y `peores_casos` (ordena por F1 ascendente).
+
+Último ensayo guardado en `src/resultados_metricas.json` (29-10-2026, 3 consultas de astroturismo): F1 0.47 / 0.46 / 0.39, promedio 0.44. Las tres respuestas son correctas, pero obtienen un F1 bajo porque dicen lo mismo con otras palabras ("baja humedad" frente a "aire seco"). Es un límite conocido de las métricas por coincidencia de palabras.
 
 ### Banco de prompts (Bloque 10)
 
@@ -148,10 +191,12 @@ Prima la latencia (demo en vivo). La limitación conocida es la calidad (inventa
 | `ModuleNotFoundError: No module named 'dotenv'` | Entorno sin dependencias | Activar `.venv` y ejecutar `pip install -r requirements.txt` |
 | Mensaje de llave no encontrada | Falta `.env` o la variable | Copiar `.env.example` a `.env` y poner `GEMINI_API_KEY` |
 | `Status Code: 400` | Petición mal formada (p. ej. `system_instruction` en vez de `systemInstruction`) | Revisar los nombres de campo en camelCase |
-| `Status Code: 403` / `401` | Llave inválida o sin permisos | Generar una nueva llave en AI Studio |
-| `Status Code: 429` | Límite del nivel gratuito | Esperar; `comparar_modelos.py` reintenta con backoff |
-| `Status Code: 503` | Servicio saturado | Reintentar en unos segundos |
-| `La respuesta del modelo no es JSON válido` | El modelo devolvió texto libre | Revisar la system instruction y el `responseSchema` |
+| `Credencial inválida o sin permiso` | Llave inválida o sin permisos (`401`, `403` o `400 API_KEY_INVALID`) | Generar una nueva llave en AI Studio |
+| `Límite excedido` | `429`: límite del nivel gratuito | Esperar; `consultar_modelo` (`cliente.py`) reintenta con backoff |
+| `El proveedor del servicio no pudo procesar la peticion` | `5xx`: servicio saturado | `consultar_modelo` reintenta solo; si se agotan los intentos, probar más tarde |
+| `La respuesta no es un JSON válido` | El servicio devolvió algo que no es JSON | Reintentar en unos segundos |
+| `La respuesta del modelo no es JSON válido` | El modelo devolvió texto libre en vez del JSON pedido | Revisar la system instruction y el `responseSchema` |
+| `ModuleNotFoundError: No module named 'cliente'` al correr `pytest` | Se ejecutó desde una carpeta que no es la raíz del repositorio ni `src/` | Volver a la raíz y correr `python -m pytest -v` |
 
 ## Pruebas de reproducción del entorno
 
@@ -204,7 +249,8 @@ Verificado el 24-10-2026 sobre el clon del repositorio:
 
 | Etapa | Contenido | Estado |
 |---|---|---|
-| Gate 1 | Conexión autenticada, JSON validado, banco de prompts, decisión de modelo, README | En curso |
+| Gate 1 | Conexión autenticada, JSON validado, banco de prompts, decisión de modelo, README | Entregado (22-10-2026) |
+| Módulo 2 | Cliente modular con reintentos y backoff, costo por operación, pruebas unitarias, pipeline de texto y métricas | En curso |
 | Gate 2 | Herramientas (fase lunar, visibilidad, pronóstico) y RAG sobre documentos de astroturismo | Planificado |
 | Gate 3 | Aplicación completa | Planificado |
 
