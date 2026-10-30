@@ -6,6 +6,7 @@ from metricas import (
     calcular_metricas,
     resumir_metricas,
     peores_casos,
+    muestra_para_revisar,
 )
 
 
@@ -67,3 +68,16 @@ def test_resumir_metricas_lista_vacia():
 def test_peores_casos_ordena_por_f1_ascendente():
     resultados = [{"consulta": "a", "f1": 0.77}, {"consulta": "b", "f1": 0.44}, {"consulta": "c", "f1": 0.62}]
     assert [r["consulta"] for r in peores_casos(resultados, cantidad=2)] == ["b", "c"]
+
+
+def test_muestra_para_revisar_junta_peores_y_mejores():
+    resultados = [{"consulta": f"c{i}", "f1": i / 10} for i in range(12)]
+    muestra = [r["consulta"] for r in muestra_para_revisar(resultados)]
+    assert muestra == ["c0", "c1", "c2", "c3", "c4", "c7", "c8", "c9", "c10", "c11"]
+
+
+def test_muestra_para_revisar_no_duplica_con_pocos_resultados():
+    resultados = [{"consulta": f"c{i}", "f1": i / 10} for i in range(6)]
+    muestra = muestra_para_revisar(resultados)
+    assert len(muestra) == 6
+    assert len({r["consulta"] for r in muestra}) == 6

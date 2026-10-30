@@ -2,25 +2,161 @@
   {
     "consulta": "¿Por qué el norte de Chile es bueno para observar estrellas?",
     "referencia": "El norte de Chile tiene cielos despejados, aire seco, altura y poca contaminación lumínica.",
-    "respuesta": "El norte de Chile es ideal para observar estrellas debido a sus cielos extremadamente despejados, su baja humedad y la casi nula contaminación lumínica.",
-    "precision": 0.375,
+    "respuesta": "El norte de Chile es ideal para la observación estelar debido a sus cielos extremadamente despejados, su baja humedad y la casi total ausencia de contaminación lumínica en gran parte de su territorio.",
+    "precision": 0.273,
     "cobertura": 0.643,
-    "f1": 0.474
+    "f1": 0.383
   },
   {
     "consulta": "¿Qué es la contaminación lumínica?",
     "referencia": "La contaminación lumínica es el exceso de luz artificial que ilumina el cielo nocturno y oculta las estrellas.",
-    "respuesta": "La contaminación lumínica es el brillo artificial del cielo nocturno causado por un uso inadecuado o excesivo de la iluminación artificial.",
-    "precision": 0.429,
-    "cobertura": 0.5,
-    "f1": 0.462
+    "respuesta": "Es el brillo artificial del cielo nocturno producido por una mala gestión de la iluminación exterior.",
+    "precision": 0.438,
+    "cobertura": 0.389,
+    "f1": 0.412
   },
   {
     "consulta": "¿Qué es una lluvia de meteoros?",
     "referencia": "Una lluvia de meteoros ocurre cuando la Tierra cruza los restos que deja un cometa y esas partículas se queman en la atmósfera.",
-    "respuesta": "Una lluvia de meteoros es un fenómeno astronómico en el que numerosos fragmentos de un cometa se desintegran al entrar a gran velocidad en la atmósfera terrestre, creando estelas luminosas en el cielo.",
-    "precision": 0.333,
+    "respuesta": "Es un fenómeno astronómico en el que numerosos meteoros ingresan y se desintegran simultáneamente en la atmósfera terrestre al cruzar la Tierra por los restos de un cometa.",
+    "precision": 0.5,
+    "cobertura": 0.609,
+    "f1": 0.549
+  },
+  {
+    "consulta": "¿Cuándo es el máximo de la lluvia de meteoros Gemínidas?",
+    "referencia": "La lluvia de las Gemínidas alcanza su máximo cada año alrededor del 13 y 14 de diciembre.",
+    "respuesta": "El máximo de la lluvia de meteoros Gemínidas ocurre cada año alrededor del 13 al 14 de diciembre.",
+    "precision": 0.722,
+    "cobertura": 0.765,
+    "f1": 0.743
+  },
+  {
+    "consulta": "¿A qué altura está el observatorio ALMA?",
+    "referencia": "ALMA está en el llano de Chajnantor, en la región de Antofagasta, a unos 5.000 metros de altura.",
+    "respuesta": "El observatorio ALMA está ubicado a una altura de aproximadamente 5.000 metros sobre el nivel del mar.",
+    "precision": 0.471,
+    "cobertura": 0.444,
+    "f1": 0.457
+  },
+  {
+    "consulta": "¿Dónde está el Observatorio Paranal?",
+    "referencia": "El Observatorio Paranal está en el cerro Paranal, en la región de Antofagasta, a 2.635 metros de altura, y alberga el Very Large Telescope.",
+    "respuesta": "El Observatorio Paranal está ubicado en el norte de Chile, en el desierto de Atacama.",
+    "precision": 0.667,
+    "cobertura": 0.417,
+    "f1": 0.513
+  },
+  {
+    "consulta": "¿Por qué es famoso el Valle del Elqui?",
+    "referencia": "El Valle del Elqui, en la región de Coquimbo, es famoso por sus cielos limpios, sus observatorios turísticos y el pisco.",
+    "respuesta": "El Valle del Elqui es famoso por sus cielos limpios ideales para la observación astronómica y por ser la cuna de la poetisa Gabriela Mistral.",
+    "precision": 0.52,
+    "cobertura": 0.619,
+    "f1": 0.565
+  },
+  {
+    "consulta": "¿Cuál fue el primer santuario internacional de cielo oscuro del mundo?",
+    "referencia": "El Santuario Gabriela Mistral, en el Valle del Elqui, fue declarado en 2015 el primer Santuario Internacional de Cielo Oscuro del mundo.",
+    "respuesta": "El primer santuario internacional de cielo oscuro del mundo fue el Parque Nacional Aoraki/Mount Cook en Nueva Zelanda, designado en 1998.",
+    "precision": 0.619,
+    "cobertura": 0.591,
+    "f1": 0.605
+  },
+  {
+    "consulta": "¿Qué hará el Observatorio Vera C. Rubin?",
+    "referencia": "El Observatorio Vera C. Rubin, en el cerro Pachón de la región de Coquimbo, hará un sondeo del cielo austral durante diez años.",
+    "respuesta": "El Observatorio Vera C. Rubin realizará un relevamiento dinámico de todo el cielo austral para estudiar la energía oscura, la materia oscura y los asteroides.",
+    "precision": 0.44,
     "cobertura": 0.478,
-    "f1": 0.393
+    "f1": 0.458
+  },
+  {
+    "consulta": "¿Qué son las Nubes de Magallanes?",
+    "referencia": "Las Nubes de Magallanes son dos galaxias enanas satélites de la Vía Láctea que se ven a simple vista desde el hemisferio sur.",
+    "respuesta": "Son dos galaxias enanas irregulares que orbitan la Vía Láctea como satélites naturales.",
+    "precision": 0.692,
+    "cobertura": 0.391,
+    "f1": 0.5
+  },
+  {
+    "consulta": "¿Cuál es el mejor momento del mes para observar estrellas?",
+    "referencia": "El mejor momento es cerca de la luna nueva, porque la luz de la Luna no opaca las estrellas débiles.",
+    "respuesta": "El mejor momento del mes para observar estrellas es durante la luna nueva, ya que la oscuridad del cielo nocturno permite ver los astros con mayor claridad y brillo.",
+    "precision": 0.31,
+    "cobertura": 0.45,
+    "f1": 0.367
+  },
+  {
+    "consulta": "¿Qué es un eclipse total de Sol?",
+    "referencia": "Un eclipse total de Sol ocurre cuando la Luna se interpone entre la Tierra y el Sol y lo cubre por completo.",
+    "respuesta": "Un eclipse total de Sol es un fenómeno astronómico en el que la Luna se interpone completamente entre la Tierra y el Sol, oscureciendo temporalmente la luz solar en una franja del planeta.",
+    "precision": 0.455,
+    "cobertura": 0.682,
+    "f1": 0.545
+  },
+  {
+    "consulta": "¿Cuándo fue el último eclipse total de Sol visible en Chile?",
+    "referencia": "El último eclipse total de Sol visible en Chile fue el 14 de diciembre de 2020, en la región de La Araucanía.",
+    "respuesta": "El último eclipse total de Sol visible en Chile ocurrió el 4 de diciembre de 2021 en la Antártida.",
+    "precision": 0.789,
+    "cobertura": 0.682,
+    "f1": 0.732
+  },
+  {
+    "consulta": "¿Para qué sirve la Cruz del Sur?",
+    "referencia": "La Cruz del Sur es una constelación del cielo austral que sirve para ubicar el polo sur celeste.",
+    "respuesta": "La Cruz del Sur sirve principalmente para orientarse y localizar el Polo Sur celeste en el hemisferio austral.",
+    "precision": 0.611,
+    "cobertura": 0.611,
+    "f1": 0.611
+  },
+  {
+    "consulta": "¿Cuál es el planeta más brillante del cielo nocturno?",
+    "referencia": "Venus es el planeta más brillante del cielo nocturno y se ve cerca del horizonte al amanecer o al atardecer.",
+    "respuesta": "El planeta más brillante del cielo nocturno es Venus.",
+    "precision": 1.0,
+    "cobertura": 0.45,
+    "f1": 0.621
+  },
+  {
+    "consulta": "¿Qué es un año luz?",
+    "referencia": "Un año luz es la distancia que recorre la luz en un año, unos 9,46 billones de kilómetros.",
+    "respuesta": "Un año luz es la distancia que recorre la luz en el vacío durante un año, equivalente a unos 9,46 billones de kilómetros.",
+    "precision": 0.783,
+    "cobertura": 1.0,
+    "f1": 0.878
+  },
+  {
+    "consulta": "¿Se puede ver la Vía Láctea desde una ciudad grande?",
+    "referencia": "No, en una ciudad grande la contaminación lumínica impide ver la Vía Láctea.",
+    "respuesta": "No se puede ver la Vía Láctea desde una ciudad grande debido a la alta contaminación lumínica.",
+    "precision": 0.647,
+    "cobertura": 0.846,
+    "f1": 0.733
+  },
+  {
+    "consulta": "¿Por qué se ven pocas estrellas en Santiago?",
+    "referencia": "En Santiago se ven pocas estrellas por la contaminación lumínica de la ciudad y el smog.",
+    "respuesta": "Santiago se ve con pocas estrellas debido a la alta contaminación lumínica y el smog propios de la ciudad.",
+    "precision": 0.684,
+    "cobertura": 0.812,
+    "f1": 0.743
+  },
+  {
+    "consulta": "¿Qué es el Telescopio Extremadamente Grande (ELT)?",
+    "referencia": "El Telescopio Extremadamente Grande de ESO se construye en el cerro Armazones, en la región de Antofagasta, y tendrá un espejo principal de 39 metros.",
+    "respuesta": "El Telescopio Extremadamente Grande (ELT) es un observatorio óptico e infrarrojo en construcción que será el ojo más grande del mundo para mirar el cielo.",
+    "precision": 0.28,
+    "cobertura": 0.28,
+    "f1": 0.28
+  },
+  {
+    "consulta": "¿Necesito un telescopio para empezar a observar el cielo?",
+    "referencia": "No se necesita un telescopio para empezar; bastan unos binoculares, una linterna roja y un mapa del cielo.",
+    "respuesta": "No, puedes empezar perfectamente a simple vista o con unos binoculares sencillos.",
+    "precision": 0.333,
+    "cobertura": 0.222,
+    "f1": 0.267
   }
 ]

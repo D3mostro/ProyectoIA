@@ -51,7 +51,8 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 | Prueba de consistencia del banco de prompts (3 intentos por prompt; guarda `prompts/registro_resultados.json`) | `python prompts/test_consistencia.py` |
 | Ensayo de rate limit: 10 consultas seguidas con reintento y costo acumulado (Bloque 13) | `python src/cliente.py` |
 | Pipeline de texto: coincidencia de palabras antes y después de limpiar (guarda `src/registro_pipeline_texto.json`) | `python src/pipeline_texto.py` |
-| Métricas de precisión, cobertura y F1 sobre 3 respuestas reales (guarda `src/resultados_metricas.json`) | `python src/metricas.py` |
+| Métricas de precisión, cobertura y F1 sobre 20 respuestas reales (guarda `src/resultados_metricas.json`; si se corta, al volver a correrlo retoma lo que falta) | `python src/metricas.py` |
+| Revisión manual de 10 casos con la rúbrica del Bloque 17 (guarda `src/revision_manual.json`) | `python src/revision_manual.py` |
 
 Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en segundos y el costo estimado en USD. Si la llave falta o es incorrecta, el programa lo informa con un mensaje claro.
 
@@ -81,17 +82,21 @@ python -m pytest -v
 │   ├── cliente.py             # Cliente modular: reintento con backoff y registro de costo
 │   ├── pipeline_texto.py      # Limpieza, tokenización y bolsa de palabras
 │   ├── metricas.py            # Precisión, cobertura y F1 sobre las salidas del modelo
+│   ├── casos_evaluacion.py    # 20 consultas con referencia escrita a mano
+│   ├── revision_manual.py     # Rúbrica aplicada a mano a 10 casos (Bloque 17)
 │   ├── test_cliente.py        # Pruebas unitarias (pytest)
 │   ├── test_pipeline_texto.py
 │   ├── test_metricas.py
 │   ├── registro_pipeline_texto.json   # (se genera al ejecutar pipeline_texto.py)
-│   └── resultados_metricas.json       # (se genera al ejecutar metricas.py)
+│   ├── resultados_metricas.json       # (se genera al ejecutar metricas.py)
+│   └── revision_manual.json           # (se genera al ejecutar revision_manual.py)
 ├── prompts/
 │   ├── banco.py               # Banco de prompts: system instruction + esquema JSON
 │   ├── test_consistencia.py   # Ejecuta cada prompt varias veces y cuenta respuestas válidas
 │   └── registro_resultados.json   # (se genera al ejecutar la prueba)
 ├── docs/
 │   ├── decision-arquitectura.md   # Elección del modelo y su justificación
+│   ├── limites_metrica.md         # Qué no puede medir el F1 (Bloque 17)
 │   ├── diagrama_arquitectura.png  # Diagrama del flujo de la aplicación
 │   └── Evidencia_conexion_Autenticada_Gemini.png
 ├── tests/                     # Viene de la plantilla del curso; hoy vacía (las pruebas están en src/)
@@ -133,12 +138,12 @@ Funciones de `src/cliente.py` (Bloques 12 y 13):
 
 **Criterio de errores:** `ValueError` = el contenido o la credencial están mal (no tiene sentido reintentar); `TimeoutError` = falla momentánea del proveedor (se reintenta); `RuntimeError` = falló la comunicación de forma definitiva. Así cada capa sabe qué hacer en cada caso.
 
-### Pipeline de texto y métricas (Bloques 15 y 16)
+### Pipeline de texto, métricas y sus límites (Bloques 15 a 17)
 
 - `src/pipeline_texto.py`: `limpiar_texto` (minúsculas, sin puntuación, conserva tildes, ñ y números; `TypeError` si no recibe texto), `tokenizar`, `procesar_texto` (los dos pasos juntos), `vectorizar` (bolsa de palabras con `Counter`) y `calcular_coincidencia`.
-- `src/metricas.py`: `calcular_precision_cobertura_f1` (cuenta repeticiones con la intersección de `Counter`; devuelve 0.0 si algún texto está vacío), `calcular_metricas`, `resumir_metricas` (promedios) y `peores_casos` (ordena por F1 ascendente).
+- `src/metricas.py`: `calcular_precision_cobertura_f1` (cuenta repeticiones con la intersección de `Counter`; devuelve 0.0 si algún texto está vacío), `calcular_metricas`, `resumir_metricas` (promedios) `peores_casos` (ordena por F1 ascendente) y `muestra_para_revisar` (los 5 F1 más bajos y los 5 más altos, sin repetir).
 
-Último ensayo guardado en `src/resultados_metricas.json` (29-10-2026, 3 consultas de astroturismo): F1 0.47 / 0.46 / 0.39, promedio 0.44. Las tres respuestas son correctas, pero obtienen un F1 bajo porque dicen lo mismo con otras palabras ("baja humedad" frente a "aire seco"). Es un límite conocido de las métricas por coincidencia de palabras.
+Último ensayo guardado en `src/resultados_metricas.json` (30-10-2026, 20 consultas de astroturismo de `src/casos_evaluacion.py`): precisión 0.56, cobertura 0.57, F1 promedio 0.55. La revisión manual de 10 casos (`src/revision_manual.py`) encontró un falso positivo: una fecha de eclipse equivocada con F1 0.73. Los límites de la métrica y cuándo revisar a mano están en [`docs/limites_metrica.md`](docs/limites_metrica.md).
 
 ### Banco de prompts (Bloque 10)
 
