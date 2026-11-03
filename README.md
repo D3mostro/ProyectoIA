@@ -53,6 +53,7 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 | Pipeline de texto: coincidencia de palabras antes y después de limpiar (guarda `src/registro_pipeline_texto.json`) | `python src/pipeline_texto.py` |
 | Métricas de precisión, cobertura y F1 sobre 20 respuestas reales (guarda `src/resultados_metricas.json`; si se corta, al volver a correrlo retoma lo que falta) | `python src/metricas.py` |
 | Revisión manual de 10 casos con la rúbrica del Bloque 17 (guarda `src/revision_manual.json`) | `python src/revision_manual.py` |
+| Chain de tres pasos con LangChain: clasificar, redactar y revisar una consulta (3 llamadas al modelo, Bloque 18) | `python src/cadena_tres_pasos.py` |
 
 Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en segundos y el costo estimado en USD. Si la llave falta o es incorrecta, el programa lo informa con un mensaje claro.
 
@@ -69,6 +70,7 @@ python -m pytest -v
 | `test_cliente.py` | Clasificación de errores HTTP, reintento con backoff, registro de costo y `consultar_modelo` |
 | `test_pipeline_texto.py` | Limpieza, tokenización, bolsa de palabras y coincidencia |
 | `test_metricas.py` | Precisión, cobertura, F1, casos vacíos, resumen, peores casos y los tres límites de la métrica (sinónimo, dato equivocado, negación) |
+| `test_cadena_tres_pasos.py` | Que la chain llame tres veces al modelo (mock) y que la salida de cada paso llegue al siguiente |
 
 `pytest.ini` limita la búsqueda a `src/` (`testpaths = src`). Así `pytest` no recolecta `prompts/test_consistencia.py`, que no es una prueba unitaria (llama a la API real). También funciona `cd src` y luego `python -m pytest -v`.
 
@@ -84,9 +86,11 @@ python -m pytest -v
 │   ├── metricas.py            # Precisión, cobertura y F1 sobre las salidas del modelo
 │   ├── casos_evaluacion.py    # 20 consultas con referencia escrita a mano
 │   ├── revision_manual.py     # Rúbrica aplicada a mano a 10 casos (Bloque 17)
+│   ├── cadena_tres_pasos.py   # Chain LangChain: clasificar, redactar, revisar (Bloque 18)
 │   ├── test_cliente.py        # Pruebas unitarias (pytest)
 │   ├── test_pipeline_texto.py
 │   ├── test_metricas.py
+│   ├── test_cadena_tres_pasos.py
 │   ├── registro_pipeline_texto.json   # (se genera al ejecutar pipeline_texto.py)
 │   ├── resultados_metricas.json       # (se genera al ejecutar metricas.py)
 │   └── revision_manual.json           # (se genera al ejecutar revision_manual.py)
@@ -144,6 +148,16 @@ Funciones de `src/cliente.py` (Bloques 12 y 13):
 - `src/metricas.py`: `calcular_precision_cobertura_f1` (cuenta repeticiones con la intersección de `Counter`; devuelve 0.0 si algún texto está vacío), `calcular_metricas`, `resumir_metricas` (promedios) `peores_casos` (ordena por F1 ascendente) y `muestra_para_revisar` (los 5 F1 más bajos y los 5 más altos, sin repetir).
 
 Último ensayo guardado en `src/resultados_metricas.json` (30-10-2026, 20 consultas de astroturismo de `src/casos_evaluacion.py`): precisión 0.56, cobertura 0.57, F1 promedio 0.55. La revisión manual de 10 casos (`src/revision_manual.py`) encontró un falso positivo: una fecha de eclipse equivocada con F1 0.73. Los límites de la métrica y cuándo revisar a mano están en [`docs/limites_metrica.md`](docs/limites_metrica.md).
+
+### Chain de tres pasos con LangChain (Bloque 18)
+
+`src/cadena_tres_pasos.py` encadena con el operador `|` tres llamadas al modelo, cada una con su propio `PromptTemplate`:
+
+1. **Clasificar** la consulta del turista (`lugar`, `evento`, `equipo` o `logistica`). La categoría se reutilizará en el enrutamiento condicional del Bloque 19.
+2. **Redactar** una respuesta breve enfocada en esa categoría.
+3. **Revisar** el borrador contra la consulta original: quita fechas, cifras o nombres propios que no aparezcan en ella (el problema que mostró el Bloque 17 con la fecha del eclipse).
+
+`construir_cadena(modelo)` recibe el modelo por parámetro y devuelve la chain sin ejecutarla, así las pruebas lo reemplazan por un mock. Cada salida se convierte en texto con `StrOutputParser`, como en las lecciones. **Desviación del curso:** los pasos 2 y 3 necesitan la consulta original además de la salida del paso anterior, y las lecciones solo enseñan cadenas rectas. Por eso se usa `RunnableParallel` (de `langchain_core`, no requiere instalar nada); unir dos diccionarios con `|` no sirve porque Python los mezcla en uno. `temperature` no se pasa: `gemini-3.5-flash-lite` la ignora y Google la elimina en los modelos nuevos. Esta chain no usa los reintentos de `cliente.py`: ante un 429 del nivel gratuito falla.
 
 ### Banco de prompts (Bloque 10)
 
