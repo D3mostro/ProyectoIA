@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableParallel
+from langchain_core.runnables import RunnablePassthrough
 
 from consumir_gemini import MODELO
 
@@ -41,13 +41,13 @@ def construir_cadena(modelo):
     paso_redaccion = plantilla_redaccion | modelo | StrOutputParser()
     paso_revision = plantilla_revision | modelo | StrOutputParser()
 
-    # RunnableParallel (no está en el curso) deja pasar dos valores a la vez: la consulta original sigue
-    # viajando junto a la salida de cada paso. Dos diccionarios unidos con "|" no sirven: Python los mezcla en uno.
-    paso_1 = RunnableParallel(
-        consulta=lambda entrada: entrada["consulta"], categoria=paso_clasificacion
+    # assign (Bloque 19) agrega una clave nueva al diccionario sin perder las anteriores: la consulta original
+    # sigue viajando junto a la salida de cada paso. Dos diccionarios unidos con "|" no sirven: Python los mezcla.
+    return (
+        RunnablePassthrough.assign(categoria=paso_clasificacion)
+        | RunnablePassthrough.assign(borrador=paso_redaccion)
+        | paso_revision
     )
-    paso_2 = RunnableParallel(consulta=lambda d: d["consulta"], borrador=paso_redaccion)
-    return paso_1 | paso_2 | paso_revision
 
 
 if __name__ == "__main__":
