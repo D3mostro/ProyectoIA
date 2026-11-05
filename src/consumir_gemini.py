@@ -48,8 +48,17 @@ def enviar_peticion(url, body):
     if respuesta.status_code >= 500:
         raise TimeoutError("El proveedor del servicio no pudo procesar la peticion. Intenta de nuevo en unos momentos.")
     if respuesta.status_code == 429:
-        segundos = respuesta.headers.get("retry-After")
-        mensaje = f"Límite excedido. Reintentar en {segundos}s." if segundos else "Límite excedido."
+        # Mensaje real de Google (adoptado del código de la profesora): distingue cuota por minuto de cuota diaria
+        try:
+            detalle = respuesta.json()["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            detalle = None
+        if not isinstance(detalle, str) or not detalle.strip():
+            detalle = "Límite excedido."
+        segundos = respuesta.headers.get("Retry-After")
+        mensaje = f"HTTP 429: {detalle}"
+        if segundos:
+            mensaje += f" Reintentar en {segundos}s."
         raise TimeoutError(mensaje)
 
     if respuesta.status_code != 200:

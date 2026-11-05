@@ -48,6 +48,22 @@ def test_enviar_peticion_limite_de_uso():
             enviar_peticion(URL, CUERPO)
 
 
+def test_enviar_peticion_limite_de_uso_incluye_el_mensaje_de_google():
+    respuesta_falsa = Mock(status_code=429, headers={"Retry-After": "7"})
+    respuesta_falsa.json.return_value = {"error": {"message": "Quota exceeded per minute"}}
+    with patch("consumir_gemini.requests.post", return_value=respuesta_falsa):
+        with pytest.raises(TimeoutError, match="Quota exceeded per minute.*Reintentar en 7s"):
+            enviar_peticion(URL, CUERPO)
+
+
+def test_enviar_peticion_limite_de_uso_sin_cuerpo_json():
+    respuesta_falsa = Mock(status_code=429, headers={})
+    respuesta_falsa.json.side_effect = ValueError("no es JSON")
+    with patch("consumir_gemini.requests.post", return_value=respuesta_falsa):
+        with pytest.raises(TimeoutError, match="HTTP 429: Límite excedido."):
+            enviar_peticion(URL, CUERPO)
+
+
 def test_enviar_peticion_error_del_servidor():
     respuesta_falsa = Mock(status_code=503)
     with patch("consumir_gemini.requests.post", return_value=respuesta_falsa):

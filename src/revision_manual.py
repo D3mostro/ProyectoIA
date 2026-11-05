@@ -107,8 +107,22 @@ revision_manual = [
     },
 ]
 
+def unir_con_resultados(revisiones: list[dict], resultados: list[dict]) -> list[dict]:
+    """Junta cada revisión con su caso completo (id, referencia, respuesta, métricas), como en el código de la
+    profesora: así revision_manual.json se lee solo, sin cruzarlo con resultados_metricas.json."""
+    por_consulta = {r["consulta"]: r for r in resultados}
+    unidos = []
+    for revision in revisiones:
+        if revision["consulta"] not in por_consulta:
+            raise ValueError(f"La consulta no está en resultados_metricas.json: {revision['consulta']}")
+        unidos.append({**por_consulta[revision["consulta"]], **revision})
+    return unidos
+
+
 if __name__ == "__main__":
-    archivo = Path(__file__).parent / "revision_manual.json"
+    carpeta = Path(__file__).parent
+    resultados = json.loads((carpeta / "resultados_metricas.json").read_text(encoding="utf-8"))
+    archivo = carpeta / "revision_manual.json"
     with open(archivo, "w", encoding="utf-8") as salida:
-        json.dump(revision_manual, salida, indent=2, ensure_ascii=False)
+        json.dump(unir_con_resultados(revision_manual, resultados), salida, indent=2, ensure_ascii=False)
     print(f"{len(revision_manual)} casos revisados guardados en {archivo.name}")

@@ -5,6 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableBranch, RunnableLambda, RunnablePassthrough
+from langchain_core.callbacks import BaseCallbackHandler
 
 from consumir_gemini import MODELO
 
@@ -45,10 +46,21 @@ def construir_ruta_segura(ruta):
     return ruta.with_fallbacks([RunnableLambda(respuesta_de_respaldo)], exception_key="error")
 
 
+class CapturadorError(BaseCallbackHandler):
+    # Adoptado del código de la profesora (Bloque 20): registra el error de cualquier paso, incluida la
+    # clasificación, antes de que un fallback lo tape. Se dispara una vez por cada Runnable anidado que falla,
+    # así que un solo error puede dejar varias líneas en el log.
+    def on_chain_error(self, error: BaseException, **kwargs):
+        logger.warning("Error capturado antes del fallback: [%s] -> %s", type(error).__name__, error)
+
+
+manejador_error = CapturadorError()
+
+
 def procesar_consulta_segura(cadena, consulta):
     # Red de seguridad final: cubre también lo que ningún fallback de ruta alcanza (p. ej. la clasificación).
     try:
-        return cadena.invoke({"consulta": consulta})
+        return cadena.invoke({"consulta": consulta}, config={"callbacks": [manejador_error]})
     except Exception:
         logger.exception("Error procesando la consulta")
         return MENSAJE_ERROR
@@ -97,7 +109,16 @@ def construir_cadena_con_enrutamiento(
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.WARNING)
+    # Log a archivo con fecha (adoptado del código de la profesora). error.log queda fuera de Git por "*.log".
+    # Sin force=True: basicConfig solo corre aquí, al ejecutar el script, no al importar el módulo.
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename="error.log",
+        filemode="a",
+        encoding="utf-8",
+    )
     load_dotenv()
     # Sin temperature: gemini-3.5-flash-lite la ignora (ver README, Bloque 18).
     # timeout: with_fallbacks solo reacciona a excepciones, no a esperas; así una demora se vuelve excepción.

@@ -61,6 +61,14 @@ def muestra_para_revisar(resultados: list[dict], cantidad: int = 5) -> list[dict
     return ordenados[:cantidad] + ordenados[-cantidad:]
 
 
+def numerar_resultados(resultados: list[dict]) -> list[dict]:
+    """Pone un "id" (1, 2, 3...) al inicio de cada resultado, según su orden (adoptado del código de la profesora)."""
+    return [
+        {"id": numero, **{clave: valor for clave, valor in r.items() if clave != "id"}}
+        for numero, r in enumerate(resultados, start=1)
+    ]
+
+
 ARCHIVO_RESULTADOS = Path(__file__).parent / "resultados_metricas.json"
 
 
@@ -110,6 +118,7 @@ if __name__ == "__main__":
 
     orden = [caso["consulta"] for caso in CASOS_EVALUACION]
     resultados.sort(key=lambda r: orden.index(r["consulta"]))
+    resultados = numerar_resultados(resultados)
     guardar_resultados(resultados)
     print(f"Casos medidos: {len(resultados)} de {len(CASOS_EVALUACION)}")
 

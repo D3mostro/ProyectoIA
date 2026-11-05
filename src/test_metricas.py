@@ -7,7 +7,9 @@ from metricas import (
     resumir_metricas,
     peores_casos,
     muestra_para_revisar,
+    numerar_resultados,
 )
+from revision_manual import unir_con_resultados
 
 
 def test_contar_coincidencias_no_cuenta_repeticiones_de_mas():
@@ -81,3 +83,20 @@ def test_muestra_para_revisar_no_duplica_con_pocos_resultados():
     muestra = muestra_para_revisar(resultados)
     assert len(muestra) == 6
     assert len({r["consulta"] for r in muestra}) == 6
+
+
+def test_numerar_resultados_pone_id_al_inicio_y_reemplaza_el_anterior():
+    resultados = numerar_resultados([{"consulta": "a", "id": 9}, {"consulta": "b"}])
+    assert resultados == [{"id": 1, "consulta": "a"}, {"id": 2, "consulta": "b"}]
+    assert list(resultados[0])[0] == "id"
+
+
+def test_unir_con_resultados_agrega_el_caso_completo():
+    resultados = [{"id": 1, "consulta": "a", "referencia": "r", "respuesta": "x", "f1": 0.5}]
+    unidos = unir_con_resultados([{"consulta": "a", "f1": 0.5, "nota": "ok"}], resultados)
+    assert unidos == [{"id": 1, "consulta": "a", "referencia": "r", "respuesta": "x", "f1": 0.5, "nota": "ok"}]
+
+
+def test_unir_con_resultados_avisa_si_falta_la_consulta():
+    with pytest.raises(ValueError):
+        unir_con_resultados([{"consulta": "no existe"}], [])

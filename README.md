@@ -49,7 +49,7 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 | Prueba de conexión: una consulta de astroturismo con *system instruction* (muestra latencia y costo) | `python src/consumir_gemini.py` |
 | Comparación de los tres modelos candidatos (latencia y respuestas) | `python src/comparar_modelos.py` |
 | Prueba de consistencia del banco de prompts (3 intentos por prompt; guarda `prompts/registro_resultados.json`) | `python prompts/test_consistencia.py` |
-| Ensayo de rate limit: 10 consultas seguidas con reintento y costo acumulado (Bloque 13) | `python src/cliente.py` |
+| Ensayo de rate limit: 10 consultas seguidas con reintento y costo acumulado (Bloque 13; registro en [docs/registro_rate_limit.md](docs/registro_rate_limit.md)) | `python src/cliente.py` |
 | Pipeline de texto: coincidencia de palabras antes y después de limpiar (guarda `src/registro_pipeline_texto.json`) | `python src/pipeline_texto.py` |
 | Métricas de precisión, cobertura y F1 sobre 20 respuestas reales (guarda `src/resultados_metricas.json`; si se corta, al volver a correrlo retoma lo que falta) | `python src/metricas.py` |
 | Revisión manual de 10 casos con la rúbrica del Bloque 17 (guarda `src/revision_manual.json`) | `python src/revision_manual.py` |
@@ -107,6 +107,7 @@ python -m pytest -v
 ├── docs/
 │   ├── decision-arquitectura.md   # Elección del modelo y su justificación
 │   ├── limites_metrica.md         # Qué no puede medir el F1 (Bloque 17)
+│   ├── registro_rate_limit.md     # Registro del ensayo de rate limit (Bloque 13)
 │   ├── diagrama_arquitectura.png  # Diagrama del flujo de la aplicación
 │   └── Evidencia_conexion_Autenticada_Gemini.png
 ├── tests/                     # Viene de la plantilla del curso; hoy vacía (las pruebas están en src/)
@@ -178,7 +179,7 @@ Funciones de `src/cliente.py` (Bloques 12 y 13):
 1. **`construir_ruta_segura(ruta)`:** cada una de las cinco rutas lleva `with_fallbacks`. Si el modelo falla en esa ruta, responde un mensaje de respaldo y el resto del flujo sigue.
 2. **`procesar_consulta_segura(cadena, consulta)`:** `try/except` alrededor de `.invoke()`. Cubre lo que ningún fallback de ruta alcanza, por ejemplo un fallo del paso de clasificación, que ocurre antes de elegir la ruta.
 
-Ambas registran el error con `logging` (nivel `WARNING`; `basicConfig` se activa solo al ejecutar el script). `src/test_orquestacion.py` cubre el checklist del Bloque 20: una prueba por fila, con fallos simulados.
+Ambas registran el error con `logging` (nivel `WARNING`). Además, `procesar_consulta_segura` pasa el callback `CapturadorError` (`on_chain_error`), que deja en el log el tipo de error de cualquier paso, incluida la clasificación, antes de que un fallback lo tape. Al ejecutar el script, el log se escribe con fecha en `error.log` (fuera de Git por la regla `*.log`); `basicConfig` se activa solo en el `__main__`. `src/test_orquestacion.py` cubre el checklist del Bloque 20: una prueba por fila, con fallos simulados.
 
 **Desviaciones del curso:** (1) `exception_key="error"` en `with_fallbacks`: el respaldo recibe la excepción real y la registra con su traceback; sin eso el mensaje de respaldo ocultaría la causa. (2) `timeout=30` en el modelo del `__main__`: `with_fallbacks` solo reacciona a excepciones, no a esperas largas, y el `timeout` convierte una demora en excepción. (3) `logger.exception` en lugar de `print`, como recomienda la lección. (4) Sin modelo secundario como fallback: usaría la misma llave y la misma cuota, así que no ayuda ante un 429. (5) Nombres adaptados al proyecto: `consulta` en vez de `mensaje`, y las rutas de astroturismo en vez de `cadena_queja`. Un `except Exception` general puede ocultar errores de programación: por eso siempre se registra.
 
@@ -234,7 +235,7 @@ Prima la latencia (demo en vivo). La limitación conocida es la calidad (inventa
 | Mensaje de llave no encontrada | Falta `.env` o la variable | Copiar `.env.example` a `.env` y poner `GEMINI_API_KEY` |
 | `Status Code: 400` | Petición mal formada (p. ej. `system_instruction` en vez de `systemInstruction`) | Revisar los nombres de campo en camelCase |
 | `Credencial inválida o sin permiso` | Llave inválida o sin permisos (`401`, `403` o `400 API_KEY_INVALID`) | Generar una nueva llave en AI Studio |
-| `Límite excedido` | `429`: límite del nivel gratuito | Esperar; `consultar_modelo` (`cliente.py`) reintenta con backoff |
+| `HTTP 429: <mensaje de Google>` | `429`: límite del nivel gratuito (el mensaje dice si es cuota por minuto o diaria) | Esperar; `consultar_modelo` (`cliente.py`) reintenta con backoff |
 | `El proveedor del servicio no pudo procesar la peticion` | `5xx`: servicio saturado | `consultar_modelo` reintenta solo; si se agotan los intentos, probar más tarde |
 | `La respuesta no es un JSON válido` | El servicio devolvió algo que no es JSON | Reintentar en unos segundos |
 | `La respuesta del modelo no es JSON válido` | El modelo devolvió texto libre en vez del JSON pedido | Revisar la system instruction y el `responseSchema` |

@@ -1,6 +1,11 @@
 [
   {
+    "id": 20,
     "consulta": "¿Necesito un telescopio para empezar a observar el cielo?",
+    "referencia": "No se necesita un telescopio para empezar; bastan unos binoculares, una linterna roja y un mapa del cielo.",
+    "respuesta": "No, puedes empezar perfectamente a simple vista o con unos binoculares sencillos.",
+    "precision": 0.333,
+    "cobertura": 0.222,
     "f1": 0.267,
     "correccion_factual": "si",
     "completitud": "parcialmente",
@@ -8,7 +13,12 @@
     "nota": "dice lo mismo que la referencia (no hace falta telescopio, sirven binoculares) pero omite la linterna roja y el mapa del cielo; el F1 bajo se debe a que lo dice con otras palabras"
   },
   {
+    "id": 19,
     "consulta": "¿Qué es el Telescopio Extremadamente Grande (ELT)?",
+    "referencia": "El Telescopio Extremadamente Grande de ESO se construye en el cerro Armazones, en la región de Antofagasta, y tendrá un espejo principal de 39 metros.",
+    "respuesta": "El Telescopio Extremadamente Grande (ELT) es un observatorio óptico e infrarrojo en construcción que será el ojo más grande del mundo para mirar el cielo.",
+    "precision": 0.28,
+    "cobertura": 0.28,
     "f1": 0.28,
     "correccion_factual": "si",
     "completitud": "no",
@@ -16,7 +26,12 @@
     "nota": "lo que afirma es correcto (óptico e infrarrojo, en construcción, el más grande), pero no dice dónde está (cerro Armazones, Antofagasta) ni el espejo de 39 m, que es lo útil para el proyecto"
   },
   {
+    "id": 11,
     "consulta": "¿Cuál es el mejor momento del mes para observar estrellas?",
+    "referencia": "El mejor momento es cerca de la luna nueva, porque la luz de la Luna no opaca las estrellas débiles.",
+    "respuesta": "El mejor momento del mes para observar estrellas es durante la luna nueva, ya que la oscuridad del cielo nocturno permite ver los astros con mayor claridad y brillo.",
+    "precision": 0.31,
+    "cobertura": 0.45,
     "f1": 0.367,
     "correccion_factual": "si",
     "completitud": "si",
@@ -24,7 +39,12 @@
     "nota": "respuesta correcta y completa (luna nueva, cielo más oscuro); F1 bajo por paráfrasis: 'la Luna no opaca' frente a 'la oscuridad del cielo permite ver'"
   },
   {
+    "id": 1,
     "consulta": "¿Por qué el norte de Chile es bueno para observar estrellas?",
+    "referencia": "El norte de Chile tiene cielos despejados, aire seco, altura y poca contaminación lumínica.",
+    "respuesta": "El norte de Chile es ideal para la observación estelar debido a sus cielos extremadamente despejados, su baja humedad y la casi total ausencia de contaminación lumínica en gran parte de su territorio.",
+    "precision": 0.273,
+    "cobertura": 0.643,
     "f1": 0.383,
     "correccion_factual": "si",
     "completitud": "parcialmente",
@@ -32,7 +52,12 @@
     "nota": "cubre cielos despejados, poca humedad y poca contaminación lumínica, pero no menciona la altura; 'baja humedad' equivale a 'aire seco' y la métrica no lo reconoce"
   },
   {
+    "id": 2,
     "consulta": "¿Qué es la contaminación lumínica?",
+    "referencia": "La contaminación lumínica es el exceso de luz artificial que ilumina el cielo nocturno y oculta las estrellas.",
+    "respuesta": "Es el brillo artificial del cielo nocturno producido por una mala gestión de la iluminación exterior.",
+    "precision": 0.438,
+    "cobertura": 0.389,
     "f1": 0.412,
     "correccion_factual": "si",
     "completitud": "parcialmente",
@@ -40,7 +65,12 @@
     "nota": "define bien el fenómeno ('brillo artificial del cielo') y agrega la causa, pero no dice que oculta las estrellas, que es lo que importa al astroturista"
   },
   {
+    "id": 13,
     "consulta": "¿Cuándo fue el último eclipse total de Sol visible en Chile?",
+    "referencia": "El último eclipse total de Sol visible en Chile fue el 14 de diciembre de 2020, en la región de La Araucanía.",
+    "respuesta": "El último eclipse total de Sol visible en Chile ocurrió el 4 de diciembre de 2021 en la Antártida.",
+    "precision": 0.789,
+    "cobertura": 0.682,
     "f1": 0.732,
     "correccion_factual": "parcialmente",
     "completitud": "no",
@@ -48,7 +78,12 @@
     "nota": "FALSO POSITIVO: da otra fecha y otro lugar (4 de diciembre de 2021, Antártida) en vez de 14 de diciembre de 2020, La Araucanía. Ese eclipse existió y pasó por la Antártida que Chile reclama, por eso 'parcialmente', pero para un turista en Chile continental la respuesta es inútil. F1 alto porque el resto de la oración copia la pregunta"
   },
   {
+    "id": 17,
     "consulta": "¿Se puede ver la Vía Láctea desde una ciudad grande?",
+    "referencia": "No, en una ciudad grande la contaminación lumínica impide ver la Vía Láctea.",
+    "respuesta": "No se puede ver la Vía Láctea desde una ciudad grande debido a la alta contaminación lumínica.",
+    "precision": 0.647,
+    "cobertura": 0.846,
     "f1": 0.733,
     "correccion_factual": "si",
     "completitud": "si",
@@ -56,7 +91,12 @@
     "nota": "misma respuesta que la referencia, incluida la negación; el F1 alto es merecido"
   },
   {
+    "id": 4,
     "consulta": "¿Cuándo es el máximo de la lluvia de meteoros Gemínidas?",
+    "referencia": "La lluvia de las Gemínidas alcanza su máximo cada año alrededor del 13 y 14 de diciembre.",
+    "respuesta": "El máximo de la lluvia de meteoros Gemínidas ocurre cada año alrededor del 13 al 14 de diciembre.",
+    "precision": 0.722,
+    "cobertura": 0.765,
     "f1": 0.743,
     "correccion_factual": "si",
     "completitud": "si",
@@ -64,7 +104,12 @@
     "nota": "fecha correcta (13 al 14 de diciembre); el F1 alto es merecido"
   },
   {
+    "id": 18,
     "consulta": "¿Por qué se ven pocas estrellas en Santiago?",
+    "referencia": "En Santiago se ven pocas estrellas por la contaminación lumínica de la ciudad y el smog.",
+    "respuesta": "Santiago se ve con pocas estrellas debido a la alta contaminación lumínica y el smog propios de la ciudad.",
+    "precision": 0.684,
+    "cobertura": 0.812,
     "f1": 0.743,
     "correccion_factual": "si",
     "completitud": "si",
@@ -72,7 +117,12 @@
     "nota": "nombra las dos causas de la referencia (contaminación lumínica y smog); F1 alto merecido"
   },
   {
+    "id": 16,
     "consulta": "¿Qué es un año luz?",
+    "referencia": "Un año luz es la distancia que recorre la luz en un año, unos 9,46 billones de kilómetros.",
+    "respuesta": "Un año luz es la distancia que recorre la luz en el vacío durante un año, equivalente a unos 9,46 billones de kilómetros.",
+    "precision": 0.783,
+    "cobertura": 1.0,
     "f1": 0.878,
     "correccion_factual": "si",
     "completitud": "si",

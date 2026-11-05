@@ -82,3 +82,20 @@ def test_flujo_completo_responde_si_falla_la_ruta_tras_clasificar():
     resultado = procesar_consulta_segura(cadena, CONSULTA_LUGAR)
     assert "equipo" in resultado.lower()
     assert "no pudimos procesar" not in resultado.lower()
+
+
+def test_callback_registra_el_error_de_la_clasificacion(caplog):
+    # CapturadorError (Bloque 20) deja el tipo de error en el log antes de que el respaldo lo tape.
+    caplog.set_level(logging.WARNING)
+    cadena = construir_cadena_con_enrutamiento(paso_clasificacion=modelo_roto())
+    procesar_consulta_segura(cadena, CONSULTA_LUGAR)
+    assert "Error capturado antes del fallback: [ConnectionError]" in caplog.text
+
+
+def test_callback_no_registra_nada_si_todo_funciona(caplog):
+    caplog.set_level(logging.WARNING)
+    cadena = construir_cadena_con_enrutamiento(
+        lambda x: "lugar", cadena_lugar=lambda x: "respuesta del lugar"
+    )
+    procesar_consulta_segura(cadena, CONSULTA_LUGAR)
+    assert caplog.records == []
