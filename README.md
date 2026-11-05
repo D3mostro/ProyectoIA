@@ -54,7 +54,7 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 | Métricas de precisión, cobertura y F1 sobre 20 respuestas reales (guarda `src/resultados_metricas.json`; si se corta, al volver a correrlo retoma lo que falta) | `python src/metricas.py` |
 | Revisión manual de 10 casos con la rúbrica del Bloque 17 (guarda `src/revision_manual.json`) | `python src/revision_manual.py` |
 | Chain de tres pasos con LangChain: clasificar, redactar y revisar una consulta (3 llamadas al modelo, Bloque 18) | `python src/cadena_tres_pasos.py` |
-| Enrutamiento condicional: clasifica la consulta y la deriva a una de cinco rutas (2 llamadas por consulta, Bloque 19) | `python src/enrutamiento.py` |
+| Enrutamiento condicional con manejo de errores: clasifica la consulta y la deriva a una de cinco rutas (2 llamadas por consulta, Bloques 19 y 20) | `python src/enrutamiento.py` |
 
 Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en segundos y el costo estimado en USD. Si la llave falta o es incorrecta, el programa lo informa con un mensaje claro.
 
@@ -73,6 +73,7 @@ python -m pytest -v
 | `test_metricas.py` | Precisión, cobertura, F1, casos vacíos, resumen, peores casos y los tres límites de la métrica (sinónimo, dato equivocado, negación) |
 | `test_cadena_tres_pasos.py` | Que la chain llame tres veces al modelo (mock) y que la salida de cada paso llegue al siguiente |
 | `test_enrutamiento.py` | Que cada categoría vaya a su ruta, que una categoría inesperada caiga en la ruta general, que la ruta reciba consulta y categoría, y la normalización de la clasificación |
+| `test_orquestacion.py` | Manejo de errores (Bloque 20): clasificación vacía, prompts distintos por ruta, fallback ante fallo del modelo y su registro en el log, fallo de la clasificación y flujo completo con una ruta caída |
 
 `pytest.ini` limita la búsqueda a `src/` (`testpaths = src`). Así `pytest` no recolecta `prompts/test_consistencia.py`, que no es una prueba unitaria (llama a la API real). También funciona `cd src` y luego `python -m pytest -v`.
 
@@ -89,12 +90,13 @@ python -m pytest -v
 │   ├── casos_evaluacion.py    # 20 consultas con referencia escrita a mano
 │   ├── revision_manual.py     # Rúbrica aplicada a mano a 10 casos (Bloque 17)
 │   ├── cadena_tres_pasos.py   # Chain LangChain: clasificar, redactar, revisar (Bloque 18)
-│   ├── enrutamiento.py        # Enrutamiento condicional con RunnableBranch (Bloque 19)
+│   ├── enrutamiento.py        # Enrutamiento condicional con RunnableBranch y manejo de errores (Bloques 19 y 20)
 │   ├── test_cliente.py        # Pruebas unitarias (pytest)
 │   ├── test_pipeline_texto.py
 │   ├── test_metricas.py
 │   ├── test_cadena_tres_pasos.py
 │   ├── test_enrutamiento.py
+│   ├── test_orquestacion.py
 │   ├── registro_pipeline_texto.json   # (se genera al ejecutar pipeline_texto.py)
 │   ├── resultados_metricas.json       # (se genera al ejecutar metricas.py)
 │   └── revision_manual.json           # (se genera al ejecutar revision_manual.py)
@@ -168,6 +170,17 @@ Funciones de `src/cliente.py` (Bloques 12 y 13):
 `src/enrutamiento.py` clasifica la consulta (`construir_paso_clasificacion`) y la deriva con `RunnableBranch` a una de cinco rutas, cada una con su propio prompt: `lugar`, `evento`, `equipo`, `logistica` y una ruta general por defecto para categorías inesperadas. `RunnablePassthrough.assign(categoria=...)` agrega la categoría sin perder la consulta. El modelo y el clasificador llegan por parámetro, así las pruebas fuerzan cada ruta con un clasificador falso. Hace 2 llamadas por consulta.
 
 **Desviaciones del curso:** el modelo es `MODELO` (`gemini-3.5-flash-lite`) y no el del texto; el modelo se crea solo al ejecutar el script (no al importarlo, para que las pruebas no pidan la llave); la normalización quita también el punto final (`strip(".")`), porque `strip().lower()` dejaba `"equipo."` sin coincidir con ninguna ruta.
+
+### Manejo de errores por paso (Bloque 20)
+
+`src/enrutamiento.py` protege el flujo en dos capas:
+
+1. **`construir_ruta_segura(ruta)`:** cada una de las cinco rutas lleva `with_fallbacks`. Si el modelo falla en esa ruta, responde un mensaje de respaldo y el resto del flujo sigue.
+2. **`procesar_consulta_segura(cadena, consulta)`:** `try/except` alrededor de `.invoke()`. Cubre lo que ningún fallback de ruta alcanza, por ejemplo un fallo del paso de clasificación, que ocurre antes de elegir la ruta.
+
+Ambas registran el error con `logging` (nivel `WARNING`; `basicConfig` se activa solo al ejecutar el script). `src/test_orquestacion.py` cubre el checklist del Bloque 20: una prueba por fila, con fallos simulados.
+
+**Desviaciones del curso:** (1) `exception_key="error"` en `with_fallbacks`: el respaldo recibe la excepción real y la registra con su traceback; sin eso el mensaje de respaldo ocultaría la causa. (2) `timeout=30` en el modelo del `__main__`: `with_fallbacks` solo reacciona a excepciones, no a esperas largas, y el `timeout` convierte una demora en excepción. (3) `logger.exception` en lugar de `print`, como recomienda la lección. (4) Sin modelo secundario como fallback: usaría la misma llave y la misma cuota, así que no ayuda ante un 429. (5) Nombres adaptados al proyecto: `consulta` en vez de `mensaje`, y las rutas de astroturismo en vez de `cadena_queja`. Un `except Exception` general puede ocultar errores de programación: por eso siempre se registra.
 
 ### Banco de prompts (Bloque 10)
 
