@@ -19,3 +19,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Efemerides de Skyfield (se descargan solas)
+data/
+*.bsp

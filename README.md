@@ -2,7 +2,7 @@
 
 Miniaplicación en Python que consume la API de Google Gemini para responder consultas de astroturismo en Chile (qué se puede ver en un lugar y fecha, y cuándo conviene observar). Proyecto de la **Especialización en Desarrollo con IA Generativa (Accenture / Skillnest)**, Módulos 1 y 2.
 
-> **Estado actual (camino al Gate 2):** Gate 1 entregado (conexión autenticada a Gemini, banco de prompts con prueba de consistencia y comparación de modelos documentada). En el Módulo 2 se agregaron un cliente modular con reintentos y backoff exponencial, registro de costo por operación, pruebas unitarias con `pytest`, un pipeline de limpieza de texto y métricas de precisión, cobertura y F1 sobre las salidas del modelo. Todavía **no** hay interfaz, herramientas ni RAG (ver [Hoja de ruta](#hoja-de-ruta)).
+> **Estado actual (camino al Gate 2):** Gate 1 entregado (conexión autenticada a Gemini, banco de prompts con prueba de consistencia y comparación de modelos documentada). En el Módulo 2 se agregaron un cliente modular con reintentos y backoff exponencial, registro de costo por operación, pruebas unitarias con `pytest`, un pipeline de limpieza de texto y métricas de precisión, cobertura y F1 sobre las salidas del modelo. También hay un primer agente con dos herramientas (Skyfield y Open-Meteo). Todavía **no** hay interfaz ni RAG (ver [Hoja de ruta](#hoja-de-ruta)).
 
 ---
 
@@ -55,6 +55,7 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 | Revisión manual de 10 casos con la rúbrica del Bloque 17 (guarda `src/revision_manual.json`) | `python src/revision_manual.py` |
 | Chain de tres pasos con LangChain: clasificar, redactar y revisar una consulta (3 llamadas al modelo, Bloque 18) | `python src/cadena_tres_pasos.py` |
 | Enrutamiento condicional con manejo de errores: clasifica la consulta y la deriva a una de cinco rutas (2 llamadas por consulta, Bloques 19 y 20) | `python src/enrutamiento.py` |
+| Agente con dos herramientas: fase lunar y nubosidad, con su traza de decisión (Bloque 21; la primera vez descarga `de421.bsp`, unos 17 MB, en `data/`) | `python src/agente_con_herramientas.py` |
 
 Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en segundos y el costo estimado en USD. Si la llave falta o es incorrecta, el programa lo informa con un mensaje claro.
 
@@ -73,6 +74,7 @@ python -m pytest -v
 | `test_metricas.py` | Precisión, cobertura, F1, casos vacíos, resumen, peores casos y los tres límites de la métrica (sinónimo, dato equivocado, negación) |
 | `test_cadena_tres_pasos.py` | Que la chain llame tres veces al modelo (mock) y que la salida de cada paso llegue al siguiente |
 | `test_enrutamiento.py` | Que cada categoría vaya a su ruta, que una categoría inesperada caiga en la ruta general, que la ruta reciba consulta y categoría, y la normalización de la clasificación |
+| `test_agente_con_herramientas.py` | Agente (Bloque 21) con modelo simulado: lee la herramienta usada en `intermediate_steps`, encadena dos, no usa ninguna en una pregunta general, respeta `max_iterations`, y cada herramienta devuelve texto ante sus errores. No prueba la elección real del modelo: eso se revisa con la corrida real |
 | `test_orquestacion.py` | Manejo de errores (Bloque 20): clasificación vacía, prompts distintos por ruta, fallback ante fallo del modelo y su registro en el log, fallo de la clasificación y flujo completo con una ruta caída |
 
 `pytest.ini` limita la búsqueda a `src/` (`testpaths = src`). Así `pytest` no recolecta `prompts/test_consistencia.py`, que no es una prueba unitaria (llama a la API real). También funciona `cd src` y luego `python -m pytest -v`.
@@ -91,12 +93,14 @@ python -m pytest -v
 │   ├── revision_manual.py     # Rúbrica aplicada a mano a 10 casos (Bloque 17)
 │   ├── cadena_tres_pasos.py   # Chain LangChain: clasificar, redactar, revisar (Bloque 18)
 │   ├── enrutamiento.py        # Enrutamiento condicional con RunnableBranch y manejo de errores (Bloques 19 y 20)
+│   ├── agente_con_herramientas.py  # Agente con fase lunar y nubosidad (Bloque 21)
 │   ├── test_cliente.py        # Pruebas unitarias (pytest)
 │   ├── test_pipeline_texto.py
 │   ├── test_metricas.py
 │   ├── test_cadena_tres_pasos.py
 │   ├── test_enrutamiento.py
 │   ├── test_orquestacion.py
+│   ├── test_agente_con_herramientas.py
 │   ├── registro_pipeline_texto.json   # (se genera al ejecutar pipeline_texto.py)
 │   ├── resultados_metricas.json       # (se genera al ejecutar metricas.py)
 │   └── revision_manual.json           # (se genera al ejecutar revision_manual.py)
@@ -182,6 +186,17 @@ Funciones de `src/cliente.py` (Bloques 12 y 13):
 Ambas registran el error con `logging` (nivel `WARNING`). Además, `procesar_consulta_segura` pasa el callback `CapturadorError` (`on_chain_error`), que deja en el log el tipo de error de cualquier paso, incluida la clasificación, antes de que un fallback lo tape. Al ejecutar el script, el log se escribe con fecha en `error.log` (fuera de Git por la regla `*.log`); `basicConfig` se activa solo en el `__main__`. `src/test_orquestacion.py` cubre el checklist del Bloque 20: una prueba por fila, con fallos simulados.
 
 **Desviaciones del curso:** (1) `exception_key="error"` en `with_fallbacks`: el respaldo recibe la excepción real y la registra con su traceback; sin eso el mensaje de respaldo ocultaría la causa. (2) `timeout=30` en el modelo del `__main__`: `with_fallbacks` solo reacciona a excepciones, no a esperas largas, y el `timeout` convierte una demora en excepción. (3) `logger.exception` en lugar de `print`, como recomienda la lección. (4) Sin modelo secundario como fallback: usaría la misma llave y la misma cuota, así que no ayuda ante un 429. (5) Nombres adaptados al proyecto: `consulta` en vez de `mensaje`, y las rutas de astroturismo en vez de `cadena_queja`. Un `except Exception` general puede ocultar errores de programación: por eso siempre se registra.
+
+### Agente con herramientas (Bloque 21)
+
+`src/agente_con_herramientas.py` arma un agente con `create_tool_calling_agent` y `AgentExecutor`. El modelo decide en cada vuelta si llama a una herramienta o responde:
+
+- `consultar_fase_lunar(fecha)`: calcula con Skyfield el porcentaje iluminado de la Luna.
+- `pronosticar_nubes(lugar, fecha)`: consulta la nubosidad nocturna en Open-Meteo (datos CC BY 4.0, uso no comercial, sin API key).
+
+Las dos devuelven siempre `str` y capturan sus errores, para que el agente reciba una observación y no se caiga. Con `return_intermediate_steps=True` se puede leer qué herramienta eligió y con qué argumentos. Cada vuelta es una llamada al modelo: una consulta con una herramienta gasta al menos 2 y una con dos, al menos 3. Estas llamadas pasan por LangChain, así que no quedan en `registrar_costo`.
+
+**Desviaciones del curso:** (1) `gemini-3.5-flash-lite` (`MODELO`) en vez de `gemini-3.8-flash` o `gemini-2.0-flash`; el curso usa uno distinto en cada lección. (2) `consulta` en vez de `entrada`, para reutilizar `procesar_consulta_segura` y su `CapturadorError`. (3) `max_iterations=5` en vez de 15, para acotar el gasto de cuota. (4) La fecha de hoy va en el prompt, porque sin ella el modelo no puede resolver "esta noche". (5) Sin herramienta `calcular`: el curso usa `eval()`, que con sus caracteres permitidos aún deja pasar `9**9**9`. (6) `extraer_texto_final`, porque `flash-lite` entrega la respuesta como lista de bloques. Los lugares son 5 destinos escritos a mano, tomados de `lugares.csv`.
 
 ### Banco de prompts (Bloque 10)
 
