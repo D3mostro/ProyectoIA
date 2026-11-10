@@ -1,3 +1,5 @@
+import json
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,12 +9,19 @@ from langchain_core.runnables import RunnableLambda
 
 import agente_con_herramientas as agente_mod
 from agente_con_herramientas import (
+    ArgumentosPronostico,
     construir_agente,
+    construir_agente_con_memoria,
+    construir_prompt_agente,
     consultar_fase_lunar,
+    esperar_aprobacion,
     extraer_texto_final,
     porcentaje_iluminado,
     pronosticar_nubes,
+    registrar_traza,
+    reservar_cupo_observatorio,
 )
+from enrutamiento import procesar_consulta_segura
 
 
 def modelo_falso(*respuestas):
@@ -126,3 +135,137 @@ def test_nubes_ignora_horas_sin_dato():
 def test_extraer_texto_final_acepta_str_y_bloques():
     assert extraer_texto_final("hola") == "hola"
     assert extraer_texto_final([{"type": "text", "text": "ho"}, {"type": "text", "text": "la"}]) == "hola"
+
+
+# --- Bloque 22: args_schema y memoria ---
+
+@pytest.fixture(autouse=True)
+def estado_limpio():
+    agente_mod.historiales.clear()
+    agente_mod.registro_aprobaciones.clear()
+
+
+def modelo_que_registra(*respuestas):
+    # Igual que modelo_falso, pero guarda el texto de cada prompt para revisar qué historial recibió el modelo.
+    pendientes = iter(respuestas)
+    prompts = []
+
+    def responder(prompt):
+        prompts.append(" | ".join(str(m.content) for m in prompt.to_messages()))
+        return next(pendientes)
+
+    modelo = MagicMock()
+    modelo.bind_tools.return_value = RunnableLambda(responder)
+    return modelo, prompts
+
+
+def test_nubes_expone_su_esquema_pydantic():
+    assert pronosticar_nubes.args_schema is ArgumentosPronostico
+    assert "AAAA-MM-DD" in pronosticar_nubes.args["fecha"]["description"]
+
+
+def test_memoria_recuerda_el_turno_anterior_como_texto():
+    # El primer turno responde en bloques, como Gemini: el historial debe guardar el texto unido.
+    modelo, prompts = modelo_que_registra(
+        AIMessage(content=[{"type": "text", "text": "Habrá "}, {"type": "text", "text": "poca luna."}]),
+        AIMessage(content="Sí, esa noche."),
+    )
+    agente = construir_agente_con_memoria(modelo)
+    procesar_consulta_segura(agente, "¿Cuánta luna habrá el 14 de diciembre?", session_id="turista_1")
+    resultado = procesar_consulta_segura(agente, "¿Y esa noche estará despejado?", session_id="turista_1")
+
+    assert resultado["output"] == "Sí, esa noche."
+    assert "¿Cuánta luna habrá el 14 de diciembre?" in prompts[1]
+    assert "Habrá poca luna." in prompts[1]
+    assert [m.content for m in agente_mod.historiales["turista_1"].messages][1] == "Habrá poca luna."
+
+
+def test_memoria_separa_las_sesiones():
+    modelo, prompts = modelo_que_registra(AIMessage(content="Luna llena."), AIMessage(content="Hola."))
+    agente = construir_agente_con_memoria(modelo)
+    procesar_consulta_segura(agente, "¿Cuánta luna habrá?", session_id="turista_1")
+    procesar_consulta_segura(agente, "¿Qué me preguntaste antes?", session_id="turista_2")
+
+    assert "Luna llena." not in prompts[1]
+    assert len(agente_mod.historiales["turista_2"].messages) == 2
+
+
+# --- Bloque 23: aprobación humana y traza ---
+
+def test_aprobacion_por_timeout_devuelve_false():
+    bloqueo = threading.Event()
+    with patch("builtins.input", side_effect=lambda _: bloqueo.wait() or "s"):
+        assert esperar_aprobacion("¿Aprobar?", tiempo_limite_segundos=0.1) is False
+    bloqueo.set()  # libera el hilo que quedó esperando
+
+
+@pytest.mark.parametrize("tecleado, esperado", [(" S \n", True), ("n", False), ("", False)])
+def test_aprobacion_lee_la_respuesta(tecleado, esperado):
+    with patch("builtins.input", return_value=tecleado):
+        assert esperar_aprobacion("¿Aprobar?", tiempo_limite_segundos=1) is esperado
+
+
+def test_aprobacion_sin_entrada_estandar_no_aprueba():
+    with patch("builtins.input", side_effect=EOFError):
+        assert esperar_aprobacion("¿Aprobar?", tiempo_limite_segundos=1) is False
+
+
+def test_aprobacion_muestra_encabezado_y_usa_el_limite_global(capsys):
+    bloqueo = threading.Event()
+    with patch.object(agente_mod, "SEGUNDOS_PARA_APROBAR", 0.1), patch(
+        "builtins.input", side_effect=lambda _: bloqueo.wait() or "s"
+    ):
+        assert esperar_aprobacion("¿Aprobar?") is False
+    bloqueo.set()
+    assert "=== APROBACIÓN REQUERIDA (tienes 0.1 s" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("aprobado, esperado", [(True, "aprobada, 2 cupos"), (False, "no aprobada")])
+def test_reserva_pide_aprobacion_y_la_registra(aprobado, esperado):
+    argumentos = {"observatorio": "Mamalluca", "fecha": "2026-12-14", "personas": 2}
+    with patch.object(agente_mod, "esperar_aprobacion", return_value=aprobado):
+        observacion = reservar_cupo_observatorio.invoke(argumentos)
+
+    assert observacion.startswith("RESERVA SIMULADA (no se reservó nada real): ")
+    assert esperado in observacion
+    assert agente_mod.registro_aprobaciones[0]["argumentos"] == argumentos
+    assert agente_mod.registro_aprobaciones[0]["aprobado"] is aprobado
+
+
+def test_agente_usa_la_reserva_con_aprobacion():
+    ejecutor = construir_agente(modelo_falso(
+        pide_herramienta("reservar_cupo_observatorio", observatorio="Mamalluca", fecha="2026-12-14", personas=2),
+        AIMessage(content="Reserva lista."),
+    ))
+    with patch.object(agente_mod, "esperar_aprobacion", return_value=True) as aprobar:
+        resultado = ejecutor.invoke({"consulta": "Reserva 2 cupos en Mamalluca el 14 de diciembre"})
+
+    aprobar.assert_called_once()
+    assert resultado["intermediate_steps"][0][0].tool == "reservar_cupo_observatorio"
+
+
+def test_traza_guarda_una_linea_json_con_texto(tmp_path):
+    archivo = tmp_path / "trazas.jsonl"
+    ejecutor = construir_agente(modelo_falso(
+        pide_herramienta("consultar_fase_lunar", fecha="2026-12-14"),
+        AIMessage(content=[{"type": "text", "text": "Poca luna."}]),
+    ))
+    with patch.object(agente_mod, "angulo_de_fase", return_value=45.0):
+        resultado = ejecutor.invoke({"consulta": "¿Cuánta luna habrá?"})
+    registrar_traza("turista_1", "¿Cuánta luna habrá?", resultado, archivo=archivo)
+    registrar_traza("turista_2", "Hola", {"output": "Hola."}, archivo=archivo)  # sin intermediate_steps
+
+    lineas = [json.loads(linea) for linea in archivo.read_text(encoding="utf-8").splitlines()]
+    assert lineas[0]["acciones"][0] == {
+        "herramienta": "consultar_fase_lunar",
+        "argumentos": {"fecha": "2026-12-14"},
+        "observacion": "Luna creciente, 15 % iluminada la noche del 2026-12-14.",
+    }
+    assert lineas[0]["respuesta_final"] == "Poca luna."
+    assert lineas[1]["acciones"] == []
+
+
+def test_prompt_incluye_la_regla_de_observaciones():
+    sistema = construir_prompt_agente().format_messages(consulta="hola", agent_scratchpad=[])[0].content
+    assert "no lo completes con conocimiento general ni con datos históricos" in sistema
+    assert "Las reservas son simuladas" in sistema

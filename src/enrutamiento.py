@@ -57,10 +57,13 @@ class CapturadorError(BaseCallbackHandler):
 manejador_error = CapturadorError()
 
 
-def procesar_consulta_segura(cadena, consulta):
+def procesar_consulta_segura(cadena, consulta, session_id=None):
     # Red de seguridad final: cubre también lo que ningún fallback de ruta alcanza (p. ej. la clasificación).
+    config = {"callbacks": [manejador_error]}
+    if session_id is not None:  # solo el agente con memoria (B22) usa session_id
+        config["configurable"] = {"session_id": session_id}
     try:
-        return cadena.invoke({"consulta": consulta}, config={"callbacks": [manejador_error]})
+        return cadena.invoke({"consulta": consulta}, config=config)
     except Exception:
         logger.exception("Error procesando la consulta")
         return MENSAJE_ERROR
