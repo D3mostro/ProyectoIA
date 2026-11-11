@@ -1,8 +1,10 @@
 import json
 import logging
 import queue
+import sys
 import threading
-from datetime import date, datetime, timezone
+import unicodedata
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from math import cos, radians
 from pathlib import Path
@@ -17,7 +19,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from skyfield import almanac
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from skyfield.api import Loader
 
 from consumir_gemini import MODELO
@@ -27,6 +29,9 @@ URL_OPEN_METEO = "https://api.open-meteo.com/v1/forecast"
 CARPETA_EFEMERIDES = Path(__file__).resolve().parent.parent / "data"
 ARCHIVO_TRAZAS = Path(__file__).resolve().parent.parent / "trazas_agente.jsonl"
 SEGUNDOS_PARA_APROBAR = 300
+# Open-Meteo acepta hasta hoy + 16, pero ese último día llega sin datos de noche (probado 2026-11-10): hoy + 15.
+DIAS_PRONOSTICO = 16
+MAXIMO_PERSONAS = 20
 AVISO_SIMULADA = "RESERVA SIMULADA (no se reservó nada real): "
 # Sale de la revisión de trazas del B23: con Open-Meteo en error, el agente afirmó un clima "histórico".
 REGLA_OBSERVACIONES = (
@@ -52,8 +57,24 @@ CONVERSACIONES_EJEMPLO = [
     ("turista_2", "¿Para qué fecha te pedí la reserva?"),
 ]
 
+# shortcut: observatorios escritos a mano (sección E del corpus + Collowara y Del Pangue), pasar al corpus cuando el agente lo use.
+OBSERVATORIOS = {
+    "mamalluca": "Observatorio Mamalluca",
+    "cancana": "Observatorio Cancana",
+    "alfa aldea": "Observatorio Alfa Aldea",
+    "cruz del sur": "Observatorio Cruz del Sur",
+    "collowara": "Observatorio Collowara",
+    "del pangue": "Observatorio Del Pangue",
+}
+
 registro_aprobaciones = []
 historiales = {}
+
+
+def normalizar(texto):
+    # Minúsculas y sin tildes: el modelo puede escribir "Mamalluca", "MAMALLUCA" o "Combarbalá".
+    sin_tildes = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+    return " ".join(sin_tildes.lower().split())
 
 
 @lru_cache(maxsize=1)
@@ -104,6 +125,14 @@ def pronosticar_nubes(lugar: str, fecha: str) -> str:
     coordenadas = LUGARES.get(lugar.strip().lower())
     if coordenadas is None:
         return f"No tengo coordenadas de {lugar}. Lugares disponibles: {', '.join(LUGARES)}."
+    try:
+        dia = date.fromisoformat(fecha)
+    except ValueError:
+        return f"Fecha no válida: {fecha}. Usa el formato AAAA-MM-DD."
+    hoy = date.today()
+    # Se corta antes de llamar a la API: una fecha lejana daba 400 y el modelo terminaba inventando el clima.
+    if not hoy <= dia < hoy + timedelta(days=DIAS_PRONOSTICO):
+        return f"{fecha} está fuera del rango de pronóstico (hasta {DIAS_PRONOSTICO} días desde hoy, {hoy})."
     latitud, longitud = coordenadas
     try:
         respuesta = requests.get(
@@ -159,11 +188,44 @@ def registrar_aprobacion(herramienta, argumentos, aprobado):
         "herramienta": herramienta,
         "argumentos": argumentos,
         "aprobado": aprobado,
-        "momento": datetime.now().isoformat(),
+        "momento": datetime.now(timezone.utc).isoformat(),  # UTC, igual que la traza, para poder cruzarlas
     })
 
 
-@tool
+class ArgumentosReserva(BaseModel):
+    """Se valida antes de pedir aprobación: el supervisor no debe ver una reserva imposible."""
+
+    observatorio: str = Field(description=f"Observatorio turístico. Disponibles: {', '.join(OBSERVATORIOS.values())}.")
+    fecha: str = Field(description="Fecha de la visita, en formato AAAA-MM-DD.")
+    personas: int = Field(ge=1, le=MAXIMO_PERSONAS, description=f"Cantidad de cupos, de 1 a {MAXIMO_PERSONAS}.")
+
+    @field_validator("observatorio")
+    @classmethod
+    def observatorio_conocido(cls, valor):
+        clave = normalizar(valor).removeprefix("observatorio ").strip()
+        if clave not in OBSERVATORIOS:
+            raise ValueError(f"observatorio desconocido '{valor}'; disponibles: {', '.join(OBSERVATORIOS.values())}")
+        return OBSERVATORIOS[clave]
+
+    @field_validator("fecha")
+    @classmethod
+    def fecha_iso(cls, valor):
+        # len == 10: fromisoformat también acepta "20261214", que no es el formato pedido.
+        try:
+            if len(valor) != 10:
+                raise ValueError
+            date.fromisoformat(valor)
+        except ValueError:
+            raise ValueError(f"fecha no válida '{valor}', usa AAAA-MM-DD") from None
+        return valor
+
+
+def avisar_datos_invalidos(error):
+    detalle = "; ".join(f"{e['loc'][0]}: {e['msg'].removeprefix('Value error, ')}" for e in error.errors())
+    return f"Datos de reserva no válidos, no se pidió aprobación: {detalle}."
+
+
+@tool(args_schema=ArgumentosReserva)
 def reservar_cupo_observatorio(observatorio: str, fecha: str, personas: int) -> str:
     """Reserva cupos para una visita guiada a un observatorio turístico de Chile en
     una fecha AAAA-MM-DD. Usar SOLO cuando el usuario pide reservar de forma explícita.
@@ -178,6 +240,9 @@ def reservar_cupo_observatorio(observatorio: str, fecha: str, personas: int) -> 
     # Simulada: no hay sistema de reservas real detrás; aquí iría la llamada al observatorio.
     return f"{AVISO_SIMULADA}aprobada, {personas} cupos en {observatorio} para el {fecha}."
 
+
+# El esquema falla antes de entrar a la función: sin esto el ValidationError tumbaría al AgentExecutor.
+reservar_cupo_observatorio.handle_validation_error = avisar_datos_invalidos
 
 HERRAMIENTAS = [consultar_fase_lunar, pronosticar_nubes, reservar_cupo_observatorio]
 
@@ -246,10 +311,14 @@ def registrar_traza(session_id, entrada, resultado, archivo=ARCHIVO_TRAZAS):
             {"herramienta": accion.tool, "argumentos": accion.tool_input, "observacion": observacion}
             for accion, observacion in resultado.get("intermediate_steps", [])
         ],
-        "respuesta_final": extraer_texto_final(resultado["output"]),
+        "respuesta_final": extraer_texto_final(resultado.get("output", "")),
     }
-    with open(archivo, "a", encoding="utf-8") as destino:
-        destino.write(json.dumps(registro, ensure_ascii=False) + "\n")
+    try:
+        with open(archivo, "a", encoding="utf-8") as destino:
+            destino.write(json.dumps(registro, ensure_ascii=False) + "\n")
+    except OSError as error:
+        # Perder una traza no debe impedir mostrarle la respuesta al turista.
+        print(f"No se pudo guardar la traza en {archivo}: {error}", file=sys.stderr)
 
 
 if __name__ == "__main__":

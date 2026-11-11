@@ -1,5 +1,6 @@
 import json
 import threading
+from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -22,6 +23,10 @@ from agente_con_herramientas import (
     reservar_cupo_observatorio,
 )
 from enrutamiento import procesar_consulta_segura
+
+
+# Open-Meteo solo pronostica 16 días: los tests usan fechas relativas a hoy.
+MANANA = (date.today() + timedelta(days=1)).isoformat()
 
 
 def modelo_falso(*respuestas):
@@ -58,7 +63,7 @@ def test_agente_usa_fase_lunar():
 
 def test_agente_usa_pronostico_de_nubes():
     ejecutor = construir_agente(modelo_falso(
-        pide_herramienta("pronosticar_nubes", lugar="Vicuña", fecha="2026-11-05"),
+        pide_herramienta("pronosticar_nubes", lugar="Vicuña", fecha=MANANA),
         AIMessage(content="Estará despejado."),
     ))
     with patch("agente_con_herramientas.requests.get", return_value=respuesta_open_meteo([0] * 21 + [10, 20, 30])):
@@ -71,8 +76,8 @@ def test_agente_usa_pronostico_de_nubes():
 
 def test_agente_encadena_las_dos_herramientas():
     ejecutor = construir_agente(modelo_falso(
-        pide_herramienta("consultar_fase_lunar", fecha="2026-11-05"),
-        pide_herramienta("pronosticar_nubes", lugar="Vicuña", fecha="2026-11-05"),
+        pide_herramienta("consultar_fase_lunar", fecha=MANANA),
+        pide_herramienta("pronosticar_nubes", lugar="Vicuña", fecha=MANANA),
         AIMessage(content="Buena noche."),
     ))
     with patch.object(agente_mod, "angulo_de_fase", return_value=200.0), patch(
@@ -116,19 +121,19 @@ def test_fase_lunar_devuelve_texto_si_faltan_efemerides():
 
 
 def test_nubes_devuelve_texto_ante_lugar_desconocido():
-    observacion = pronosticar_nubes.invoke({"lugar": "Marte", "fecha": "2026-11-05"})
+    observacion = pronosticar_nubes.invoke({"lugar": "Marte", "fecha": MANANA})
     assert "No tengo coordenadas de Marte" in observacion
 
 
 def test_nubes_devuelve_texto_si_falla_la_red():
     with patch("agente_con_herramientas.requests.get", side_effect=requests.ConnectionError("sin red")):
-        observacion = pronosticar_nubes.invoke({"lugar": "Vicuña", "fecha": "2026-11-05"})
+        observacion = pronosticar_nubes.invoke({"lugar": "Vicuña", "fecha": MANANA})
     assert "No se pudo obtener el pronóstico" in observacion
 
 
 def test_nubes_ignora_horas_sin_dato():
     with patch("agente_con_herramientas.requests.get", return_value=respuesta_open_meteo([None] * 24)):
-        observacion = pronosticar_nubes.invoke({"lugar": "Vicuña", "fecha": "2026-11-05"})
+        observacion = pronosticar_nubes.invoke({"lugar": "Vicuña", "fecha": MANANA})
     assert "No hay pronóstico" in observacion
 
 
@@ -228,7 +233,7 @@ def test_reserva_pide_aprobacion_y_la_registra(aprobado, esperado):
 
     assert observacion.startswith("RESERVA SIMULADA (no se reservó nada real): ")
     assert esperado in observacion
-    assert agente_mod.registro_aprobaciones[0]["argumentos"] == argumentos
+    assert agente_mod.registro_aprobaciones[0]["argumentos"] == {**argumentos, "observatorio": "Observatorio Mamalluca"}
     assert agente_mod.registro_aprobaciones[0]["aprobado"] is aprobado
 
 
@@ -269,3 +274,91 @@ def test_prompt_incluye_la_regla_de_observaciones():
     sistema = construir_prompt_agente().format_messages(consulta="hola", agent_scratchpad=[])[0].content
     assert "no lo completes con conocimiento general ni con datos históricos" in sistema
     assert "Las reservas son simuladas" in sistema
+
+
+# --- Fix posterior al B23: validaciones antes de aprobar, rango de pronóstico, traza y hora UTC ---
+
+RESERVA_VALIDA = {"observatorio": "Mamalluca", "fecha": "2026-12-14", "personas": 2}
+
+
+@pytest.mark.parametrize("cambio, esperado", [
+    ({"personas": 0}, "personas"),
+    ({"personas": 21}, "personas"),
+    ({"personas": "muchos"}, "personas"),
+    ({"observatorio": "Observatorio de Marte"}, "observatorio desconocido"),
+    ({"fecha": "14-12-2026"}, "fecha no válida"),
+    ({"fecha": "20261214"}, "fecha no válida"),
+])
+def test_reserva_invalida_no_pide_aprobacion(cambio, esperado):
+    with patch.object(agente_mod, "esperar_aprobacion") as aprobar:
+        observacion = reservar_cupo_observatorio.invoke({**RESERVA_VALIDA, **cambio})
+
+    aprobar.assert_not_called()
+    assert observacion.startswith("Datos de reserva no válidos, no se pidió aprobación")
+    assert esperado in observacion
+    assert agente_mod.registro_aprobaciones == []
+
+
+def test_reserva_normaliza_mayusculas_y_tildes():
+    with patch.object(agente_mod, "esperar_aprobacion", return_value=True):
+        observacion = reservar_cupo_observatorio.invoke(
+            {**RESERVA_VALIDA, "observatorio": "OBSERVATORIO COLLOWÁRA", "personas": "2"}
+        )
+    assert "2 cupos en Observatorio Collowara" in observacion
+    assert agente_mod.registro_aprobaciones[0]["argumentos"]["personas"] == 2
+
+
+def test_agente_no_se_cae_con_reserva_invalida():
+    ejecutor = construir_agente(modelo_falso(
+        pide_herramienta("reservar_cupo_observatorio", observatorio="Mamalluca", fecha="2026-12-14", personas=0),
+        AIMessage(content="No pude reservar."),
+    ))
+    with patch.object(agente_mod, "esperar_aprobacion") as aprobar:
+        resultado = ejecutor.invoke({"consulta": "Reserva 0 cupos en Mamalluca"})
+
+    aprobar.assert_not_called()
+    assert "no se pidió aprobación" in resultado["intermediate_steps"][0][1]
+    assert resultado["output"] == "No pude reservar."
+
+
+@pytest.mark.parametrize("dias", [-1, 16, 40])
+def test_nubes_fuera_de_rango_no_llama_a_la_api(dias):
+    fecha = (date.today() + timedelta(days=dias)).isoformat()
+    with patch("agente_con_herramientas.requests.get") as llamada:
+        observacion = pronosticar_nubes.invoke({"lugar": "Vicuña", "fecha": fecha})
+
+    llamada.assert_not_called()
+    assert "fuera del rango de pronóstico (hasta 16 días" in observacion
+
+
+def test_nubes_acepta_el_ultimo_dia_del_rango():
+    fecha = (date.today() + timedelta(days=15)).isoformat()
+    with patch("agente_con_herramientas.requests.get", return_value=respuesta_open_meteo([0] * 24)) as llamada:
+        observacion = pronosticar_nubes.invoke({"lugar": "Vicuña", "fecha": fecha})
+    llamada.assert_called_once()
+    assert "0 %" in observacion
+
+
+def test_nubes_fecha_mal_formada_no_llama_a_la_api():
+    with patch("agente_con_herramientas.requests.get") as llamada:
+        observacion = pronosticar_nubes.invoke({"lugar": "Vicuña", "fecha": "mañana"})
+    llamada.assert_not_called()
+    assert "Fecha no válida" in observacion
+
+
+def test_traza_no_rompe_si_falla_el_disco(tmp_path, capsys):
+    with patch("builtins.open", side_effect=OSError("disco lleno")):
+        registrar_traza("turista_1", "Hola", {"output": "Hola."}, archivo=tmp_path / "trazas.jsonl")
+    assert "disco lleno" in capsys.readouterr().err
+
+
+def test_traza_sin_output_no_falla(tmp_path):
+    archivo = tmp_path / "trazas.jsonl"
+    registrar_traza("turista_1", "Hola", {}, archivo=archivo)
+    assert json.loads(archivo.read_text(encoding="utf-8"))["respuesta_final"] == ""
+
+
+def test_momento_de_aprobacion_en_utc():
+    agente_mod.registrar_aprobacion("reservar_cupo_observatorio", RESERVA_VALIDA, True)
+    momento = datetime.fromisoformat(agente_mod.registro_aprobaciones[0]["momento"])
+    assert momento.utcoffset() == timedelta(0)

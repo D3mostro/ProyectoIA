@@ -12,7 +12,7 @@ No hay herramientas de riesgo medio.
 
 ## Herramientas que requieren aprobación humana
 
-- `reservar_cupo_observatorio`: llama a `esperar_aprobacion` antes de reservar y registra la decisión con `registrar_aprobacion` (herramienta, argumentos, aprobado, momento), se apruebe o no. Si nadie responde a tiempo (`SEGUNDOS_PARA_APROBAR`: 300 s por defecto, 60 s en la demo del `__main__`), la reserva queda **no aprobada**. La espera usa un hilo y una cola en vez del `select()` del curso, porque `select()` no funciona sobre la entrada estándar en Windows.
+- `reservar_cupo_observatorio`: primero valida los datos con `ArgumentosReserva` (ver "Segunda corrección"); si son inválidos, no pide aprobación. Si son válidos, llama a `esperar_aprobacion` antes de reservar y registra la decisión con `registrar_aprobacion` (herramienta, argumentos, aprobado, momento), se apruebe o no. Si nadie responde a tiempo (`SEGUNDOS_PARA_APROBAR`: 300 s por defecto, 60 s en la demo del `__main__`), la reserva queda **no aprobada**. La espera usa un hilo y una cola en vez del `select()` del curso, porque `select()` no funciona sobre la entrada estándar en Windows.
 - `consultar_fase_lunar` y `pronosticar_nubes` no piden aprobación: son de solo lectura, y pedir confirmación en cada consulta haría que quien aprueba termine aprobando por costumbre.
 
 Límites conocidos de esta implementación:
@@ -81,3 +81,16 @@ Pruebas nuevas: el encabezado y el límite global, el prefijo de la reserva simu
   - Ante el 400 de Open-Meteo volvió a decir solo que no se pudo obtener el pronóstico.
   - Hallazgo menor: en la respuesta lunar agregó "Esto dejará el cielo bastante oscuro para disfrutar de [...] las Gemínidas". Es una inferencia razonable a partir del 30 %, pero no sale de la observación; se deja anotado para la revisión de trazas, sin cambiar el prompt.
 - Límite: son dos corridas tras la corrección; la regla del prompt reduce el riesgo, pero no garantiza que Gemini la cumpla siempre. Se sigue revisando en la muestra semanal.
+
+## Segunda corrección (2026-11-10, revisión del código)
+
+Cambios en `src/agente_con_herramientas.py`, sin corrida real nueva: las 16 líneas de `trazas_agente.jsonl` siguen siendo las de las corridas 1 a 4.
+
+1. **La reserva valida antes de pedir aprobación** (`args_schema=ArgumentosReserva`): `personas` entre 1 y 20, `fecha` en formato AAAA-MM-DD real, y `observatorio` dentro de `OBSERVATORIOS` (Mamalluca, Cancana, Alfa Aldea, Cruz del Sur, Collowara, Del Pangue; sin distinguir mayúsculas ni tildes, con o sin "Observatorio"). Si algo falla, `handle_validation_error` devuelve "Datos de reserva no válidos, no se pidió aprobación: ..." como observación, así que el agente no se cae y el supervisor no ve una reserva imposible. El registro guarda el nombre canónico (por ejemplo "Observatorio Mamalluca"; en las trazas antiguas aparece "Mamalluca").
+2. **`pronosticar_nubes` revisa el rango antes de llamar a Open-Meteo**: si la fecha es pasada o está a 16 días o más de hoy, devuelve "fuera del rango de pronóstico (hasta 16 días desde hoy)" sin hacer la petición. Probado contra la API el 2026-11-10: acepta hasta hoy + 16 días, pero ese último día llega sin datos de noche, por eso el corte es hoy + 15. Esto evita el 400 que en la corrida 1 terminó en un clima inventado.
+3. **`registrar_traza` no rompe la respuesta**: un `OSError` al escribir se avisa por stderr y la consulta sigue; usa `resultado.get("output", "")`.
+4. **`momento` en UTC**: `registrar_aprobacion` usa `datetime.now(timezone.utc)`, igual que el `timestamp` de la traza, así que se pueden cruzar sin convertir la hora de Chile. En las corridas 1 a 4 el `momento` era hora local.
+
+Pruebas nuevas (modelo falso, sin Gemini): 6 reservas inválidas que no piden aprobación ni quedan registradas, normalización de nombre y personas, agente que no se cae con datos inválidos, fechas fuera de rango sin llamar a la API, último día del rango, fecha mal formada, `OSError` en la traza, traza sin `output` y `momento` con zona UTC. Suite: 110 passed.
+
+Límites que siguen: la reserva acepta fechas pasadas; la lista de observatorios está escrita a mano; `registro_aprobaciones` y los historiales siguen solo en memoria; nada impide que el agente pida dos reservas en el mismo turno (cada una pide su propia aprobación).
