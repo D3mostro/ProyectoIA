@@ -23,3 +23,7 @@ Thumbs.db
 # Efemerides de Skyfield (se descargan solas)
 data/
 *.bsp
+
+# Índices de Chroma (se regeneran con python src/indexar_corpus.py)
+vectorstore/
+chroma_db/

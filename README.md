@@ -56,6 +56,9 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 | Chain de tres pasos con LangChain: clasificar, redactar y revisar una consulta (3 llamadas al modelo, Bloque 18) | `python src/cadena_tres_pasos.py` |
 | Enrutamiento condicional con manejo de errores: clasifica la consulta y la deriva a una de cinco rutas (2 llamadas por consulta, Bloques 19 y 20) | `python src/enrutamiento.py` |
 | Agente con dos herramientas: fase lunar y nubosidad, con su traza de decisión (Bloque 21; la primera vez descarga `de421.bsp`, unos 17 MB, en `data/`) | `python src/agente_con_herramientas.py` |
+| Primer embedding real con Gemini (Bloque 24, demo) | `python src/prueba_embeddings.py` |
+| Chunking de tamaño fijo vs. recursivo, sin llamar a la API (Bloque 24) | `python src/comparar_chunking.py` |
+| Indexa `corpus/` en Chroma (`vectorstore/`) y verifica la reconexión y una búsqueda (Bloque 24) | `python src/indexar_corpus.py` |
 
 Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en segundos y el costo estimado en USD. Si la llave falta o es incorrecta, el programa lo informa con un mensaje claro.
 
@@ -94,6 +97,9 @@ python -m pytest -v
 │   ├── cadena_tres_pasos.py   # Chain LangChain: clasificar, redactar, revisar (Bloque 18)
 │   ├── enrutamiento.py        # Enrutamiento condicional con RunnableBranch y manejo de errores (Bloques 19 y 20)
 │   ├── agente_con_herramientas.py  # Agente con fase lunar y nubosidad (Bloque 21)
+│   ├── indexar_corpus.py      # Indexación del corpus en Chroma (Bloque 24)
+│   ├── prueba_embeddings.py   # Primer embedding (Bloque 24, demo)
+│   ├── comparar_chunking.py   # Fijo vs. recursivo (Bloque 24, demo)
 │   ├── test_cliente.py        # Pruebas unitarias (pytest)
 │   ├── test_pipeline_texto.py
 │   ├── test_metricas.py
@@ -101,6 +107,7 @@ python -m pytest -v
 │   ├── test_enrutamiento.py
 │   ├── test_orquestacion.py
 │   ├── test_agente_con_herramientas.py
+│   ├── test_indexar_corpus.py
 │   ├── registro_pipeline_texto.json   # (se genera al ejecutar pipeline_texto.py)
 │   ├── resultados_metricas.json       # (se genera al ejecutar metricas.py)
 │   └── revision_manual.json           # (se genera al ejecutar revision_manual.py)
@@ -108,6 +115,8 @@ python -m pytest -v
 │   ├── banco.py               # Banco de prompts: system instruction + esquema JSON
 │   ├── test_consistencia.py   # Ejecuta cada prompt varias veces y cuenta respuestas válidas
 │   └── registro_resultados.json   # (se genera al ejecutar la prueba)
+├── corpus/                   # 6 documentos .md sobre la app, fuente del RAG (Bloque 24)
+├── vectorstore/              # (se genera con indexar_corpus.py; fuera de Git)
 ├── docs/
 │   ├── decision-arquitectura.md   # Elección del modelo y su justificación
 │   ├── limites_metrica.md         # Qué no puede medir el F1 (Bloque 17)
@@ -197,6 +206,12 @@ Ambas registran el error con `logging` (nivel `WARNING`). Además, `procesar_con
 Las dos devuelven siempre `str` y capturan sus errores, para que el agente reciba una observación y no se caiga. Con `return_intermediate_steps=True` se puede leer qué herramienta eligió y con qué argumentos. Cada vuelta es una llamada al modelo: una consulta con una herramienta gasta al menos 2 y una con dos, al menos 3. Estas llamadas pasan por LangChain, así que no quedan en `registrar_costo`.
 
 **Desviaciones del curso:** (1) `gemini-3.5-flash-lite` (`MODELO`) en vez de `gemini-3.8-flash` o `gemini-2.0-flash`; el curso usa uno distinto en cada lección. (2) `consulta` en vez de `entrada`, para reutilizar `procesar_consulta_segura` y su `CapturadorError`. (3) `max_iterations=5` en vez de 15, para acotar el gasto de cuota. (4) La fecha de hoy va en el prompt, porque sin ella el modelo no puede resolver "esta noche". (5) Sin herramienta `calcular`: el curso usa `eval()`, que con sus caracteres permitidos aún deja pasar `9**9**9`. (6) `extraer_texto_final`, porque `flash-lite` entrega la respuesta como lista de bloques. Los lugares son 5 destinos escritos a mano, tomados de `lugares.csv`.
+
+### Indexación del corpus (Bloque 24)
+
+`src/indexar_corpus.py` parte los 6 documentos de `corpus/` con `RecursiveCharacterTextSplitter` (300 caracteres, 50 de solape: cada párrafo trae una idea), calcula un embedding por chunk con `gemini-embedding-001` y los guarda en Chroma (`vectorstore/`, colección `astroturismo`). Cada chunk lleva la metadata `fuente` (nombre del archivo) para que la respuesta pueda citarla más adelante. Se indexa una sola vez: las consultas se reconectan con `conectar()` y no recalculan nada. `vectorstore/` no se versiona porque se regenera con el script.
+
+**Desviaciones del curso:** (1) Antes de indexar se borra la colección y se usan ids fijos (`archivo-n`): con el ejemplo del curso, correr el script dos veces duplica los chunks y `count()` deja de coincidir. (2) Los documentos tienen de 600 a 750 caracteres, para que el chunking parta de verdad (el ejemplo del curso usa textos más cortos que `chunk_size`, que no se parten). (3) Después de indexar, el script hace una búsqueda de prueba (`similarity_search`, k=2), como en el código de la profesora. (4) `comparar_chunking.py` no se llama `test_*.py` para que pytest no lo ejecute.
 
 ### Banco de prompts (Bloque 10)
 
