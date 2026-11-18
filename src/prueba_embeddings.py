@@ -1,4 +1,4 @@
-"""Bloque 24, lección 1: primer embedding real con Gemini (demo, no es parte del Core)."""
+
 import os
 
 from dotenv import load_dotenv
