@@ -186,8 +186,26 @@ def test_evaluar_separa_grupos_y_calcula_mrr(vectorstore):
     res = evaluar(vectorstore, CASOS_EVALUACION, ks=[3])[3]
     assert res["por_grupo"]["directa"]["n"] == 14
     assert res["por_grupo"]["parafraseada"]["n"] == 6
+    assert res["por_grupo"]["amplia"]["n"] == 5
     assert 0.0 <= res["mrr"] <= 1.0
     for fila in res["casos"]:
         if fila["posicion"] is not None:
             assert 1 <= fila["posicion"] <= 3
             assert fila["recall"] > 0
+
+
+def test_preguntas_amplias_tienen_varios_relevantes(vectorstore):
+    """Idea de la profesora: con 2-3 relevantes, precision@3 puede pasar de 0.33 y distingue configuraciones."""
+    amplias = [c for c in CASOS_EVALUACION if c.get("amplia")]
+    assert len(amplias) == 5
+    assert all(len(rel) >= 2 for rel in resolver_relevantes(vectorstore, amplias))
+
+
+def test_clave_invalida_marca_los_dos_chunks_que_la_responden(vectorstore):
+    (caso,) = [c for c in CASOS_EVALUACION if "clave de la API es inválida" in c["pregunta"]]
+    (rel,) = resolver_relevantes(vectorstore, [caso])
+    assert rel == {"errores_y_cuota-1", "errores_y_cuota-2"}
+
+
+def test_precision_puede_superar_un_tercio_con_varios_relevantes():
+    assert precision_at_k(["a", "b", "x"], {"a", "b"}) == pytest.approx(2 / 3)

@@ -20,6 +20,8 @@ Diferencias con el código de la página (fallos verificados con embeddings fals
   Por eso se guarda la posición del primer relevante y su MRR (1.º = 1, 2.º = 0,5, 3.º = 0,33,
   no llegó = 0), y se separan las preguntas parafraseadas (sin palabras del corpus) de las
   directas: si solo fallan las parafraseadas, el retriever depende de palabras compartidas.
+- Preguntas "amplias" con 2 o 3 chunks relevantes (idea de la profesora): ahí la precisión
+  sí puede pasar de 1/k y sirve para comparar configuraciones.
 """
 import argparse
 import os
@@ -47,7 +49,8 @@ CASOS_EVALUACION = [
     {"pregunta": "¿Qué responde la API cuando se pasa el límite de peticiones?",
      "evidencias": [("errores_y_cuota.md", "429 (RESOURCE_EXHAUSTED)")]},
     {"pregunta": "¿Qué hace el cliente si la clave de la API es inválida?",
-     "evidencias": [("errores_y_cuota.md", "Una clave inválida no se reintenta")]},
+     "evidencias": [("errores_y_cuota.md", "Una clave inválida no se reintenta"),
+                    ("errores_y_cuota.md", "GEMINI_API_KEY en el archivo .env")]},
     {"pregunta": "¿Cuántas veces reintenta el cliente un error pasajero?",
      "evidencias": [("errores_y_cuota.md", "hasta tres intentos")]},
     {"pregunta": "¿Qué pasa con el resto de la cadena si un paso falla?",
@@ -85,6 +88,24 @@ CASOS_EVALUACION = [
      "parafrasis": True, "evidencias": [("pronostico_nubes.md", "hasta 16 días")]},
     {"pregunta": "¿Mi lugar en el observatorio queda apartado de verdad?",
      "parafrasis": True, "evidencias": [("reserva_observatorio.md", "Hoy es simulada")]},
+    # Amplias (idea de la profesora, B27): la respuesta completa necesita 2 o 3 chunks.
+    # Con un solo relevante, precision@3 tiene techo 0.33; con varios, sí distingue configuraciones.
+    {"pregunta": "¿Cómo maneja la aplicación los errores de la API de Gemini?",
+     "amplia": True, "evidencias": [("errores_y_cuota.md", "429 (RESOURCE_EXHAUSTED)"),
+                                     ("errores_y_cuota.md", "Una clave inválida no se reintenta"),
+                                     ("errores_y_cuota.md", "cada ruta tiene un respaldo")]},
+    {"pregunta": "¿Qué controles pasa una reserva de observatorio antes de quedar aprobada?",
+     "amplia": True, "evidencias": [("reserva_observatorio.md", "entre 1 y 20 personas"),
+                                     ("reserva_observatorio.md", "un supervisor humano debe aprobar")]},
+    {"pregunta": "¿Cómo se calcula la luna para una noche y cuándo conviene observar?",
+     "amplia": True, "evidencias": [("fase_lunar.md", "calcula qué porcentaje de la Luna"),
+                                     ("fase_lunar.md", "con luna llena el cielo se aclara")]},
+    {"pregunta": "¿Qué impide que el agente invente datos de luna o de nubes?",
+     "amplia": True, "evidencias": [("memoria_y_trazas.md", "eso significa que el agente la inventó"),
+                                     ("pronostico_nubes.md", "tiene prohibido completar un pronóstico")]},
+    {"pregunta": "¿Qué modelo usa la aplicación y cuánto cuesta cada consulta?",
+     "amplia": True, "evidencias": [("modelo_y_costo.md", "El modelo de la aplicación es gemini-3.5-flash-lite"),
+                                     ("modelo_y_costo.md", "el cliente calcula el costo de cada llamada")]},
     # Sin respuesta en el corpus: no entran en los promedios (ver evaluar()).
     {"pregunta": "¿Cuánto cuesta la entrada al observatorio Mamalluca?", "evidencias": []},
     {"pregunta": "¿Qué cámara conviene para fotografiar la Vía Láctea?", "evidencias": []},
@@ -145,6 +166,8 @@ def rango_reciproco(posicion, ids_relevantes):
 def grupo(caso):
     if not caso["evidencias"]:
         return "sin_respuesta"
+    if caso.get("amplia"):
+        return "amplia"
     return "parafraseada" if caso.get("parafrasis") else "directa"
 
 
@@ -217,11 +240,12 @@ def evaluar(vectorstore, casos=CASOS_EVALUACION, ks=K_POR_DEFECTO):
             "mrr": promediar(f["rr"] for f in filas),
             "por_grupo": {
                 g: {
+                    "precision": promediar(f["precision"] for f in filas if f["grupo"] == g),
                     "recall": promediar(f["recall"] for f in filas if f["grupo"] == g),
                     "mrr": promediar(f["rr"] for f in filas if f["grupo"] == g),
                     "n": sum(1 for f in filas if f["grupo"] == g),
                 }
-                for g in ("directa", "parafraseada")
+                for g in ("directa", "parafraseada", "amplia")
             },
             "sin_respuesta": sum(1 for f in filas if f["recall"] is None),
         }
@@ -257,7 +281,7 @@ def formatear_resultados(resultados, coleccion, total_chunks, fecha=None):
             f"(sin respuesta en el corpus, fuera del promedio: {res['sin_respuesta']})"
         )
         for g, datos in res["por_grupo"].items():
-            lineas.append(f"  {g:<13} (n={datos['n']:>2}) -> recall: {_num(datos['recall'])}  mrr: {_num(datos['mrr'])}")
+            lineas.append(f"  {g:<13} (n={datos['n']:>2}) -> precision: {_num(datos['precision'])}  recall: {_num(datos['recall'])}  mrr: {_num(datos['mrr'])}")
     return "\n".join(lineas) + "\n"
 
 

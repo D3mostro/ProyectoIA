@@ -156,3 +156,73 @@ promedio k=5 -> precision: 0.20  recall: 1.00  f1: 0.33  mrr: 0.95  (sin respues
   directa       (n=14) -> recall: 1.00  mrr: 0.96
   parafraseada  (n= 6) -> recall: 1.00  mrr: 0.92
 
+==============================================================================
+Fecha: 2026-11-18 18:23:26
+Configuracion: coleccion=astroturismo (19 chunks), chunk_size=300, chunk_overlap=50, embeddings=models/gemini-embedding-001
+
+k=3   precision  recall  f1    pos  tipo          pregunta
+      0.33       1.00    0.50    1  directa       ¿Qué responde la API cuando se pasa el límite de peticiones?
+      0.67       1.00    0.80    1  directa       ¿Qué hace el cliente si la clave de la API es inválida?
+      0.33       1.00    0.50    1  directa       ¿Cuántas veces reintenta el cliente un error pasajero?
+      0.33       1.00    0.50    1  directa       ¿Qué pasa con el resto de la cadena si un paso falla?
+      0.33       1.00    0.50    1  directa       ¿Cuánto pesa el archivo de efemérides que usa la fase lunar?
+      0.33       1.00    0.50    1  directa       ¿Qué iluminación tendrá la Luna para las Gemínidas de 2026?
+      0.33       1.00    0.50    1  directa       ¿Dónde se guarda el registro de cada consulta del agente?
+      0.33       1.00    0.50    1  directa       ¿Qué se busca al revisar las trazas cada semana?
+      0.33       1.00    0.50    1  directa       ¿Cuánto cuesta el millón de tokens de entrada del modelo?
+      0.33       1.00    0.50    1  directa       ¿Sirve cambiar la temperature para que las respuestas sean consistentes?
+      0.33       1.00    0.50    2  directa       ¿Con cuántos días de anticipación se puede pedir el pronóstico de nubes?
+      0.33       1.00    0.50    1  directa       ¿Qué lugares acepta la herramienta de pronóstico de nubes?
+      0.33       1.00    0.50    1  directa       ¿Cuántas personas se pueden incluir en una reserva de observatorio?
+      0.33       1.00    0.50    1  directa       ¿Qué pasa si nadie aprueba la reserva a tiempo?
+      0.33       1.00    0.50    1  parafraseada  ¿Por qué la app a veces se niega a contestar si hago muchas preguntas seguidas?
+      0.33       1.00    0.50    1  parafraseada  ¿Necesito internet para saber cuánta luna habrá una noche?
+      0.33       1.00    0.50    1  parafraseada  ¿Conviene salir a mirar galaxias cuando la luna está redonda?
+      0.33       1.00    0.50    1  parafraseada  Si apago la aplicación, ¿el asistente sigue acordándose de nuestra charla?
+      0.33       1.00    0.50    2  parafraseada  ¿Puedo saber si va a estar despejado dentro de tres semanas?
+      0.33       1.00    0.50    1  parafraseada  ¿Mi lugar en el observatorio queda apartado de verdad?
+      0.67       0.67    0.67    1  amplia        ¿Cómo maneja la aplicación los errores de la API de Gemini?
+      0.33       0.50    0.40    3  amplia        ¿Qué controles pasa una reserva de observatorio antes de quedar aprobada?
+      0.67       1.00    0.80    1  amplia        ¿Cómo se calcula la luna para una noche y cuándo conviene observar?
+      0.67       1.00    0.80    1  amplia        ¿Qué impide que el agente invente datos de luna o de nubes?
+      0.67       1.00    0.80    1  amplia        ¿Qué modelo usa la aplicación y cuánto cuesta cada consulta?
+      n/a        n/a     n/a     -  sin_respuesta ¿Cuánto cuesta la entrada al observatorio Mamalluca?
+      n/a        n/a     n/a     -  sin_respuesta ¿Qué cámara conviene para fotografiar la Vía Láctea?
+promedio k=3 -> precision: 0.40  recall: 0.97  f1: 0.55  mrr: 0.93  (sin respuesta en el corpus, fuera del promedio: 2)
+  directa       (n=14) -> precision: 0.36  recall: 1.00  mrr: 0.96
+  parafraseada  (n= 6) -> precision: 0.33  recall: 1.00  mrr: 0.92
+  amplia        (n= 5) -> precision: 0.60  recall: 0.83  mrr: 0.87
+
+k=5   precision  recall  f1    pos  tipo          pregunta
+      0.20       1.00    0.33    1  directa       ¿Qué responde la API cuando se pasa el límite de peticiones?
+      0.40       1.00    0.57    1  directa       ¿Qué hace el cliente si la clave de la API es inválida?
+      0.20       1.00    0.33    1  directa       ¿Cuántas veces reintenta el cliente un error pasajero?
+      0.20       1.00    0.33    1  directa       ¿Qué pasa con el resto de la cadena si un paso falla?
+      0.20       1.00    0.33    1  directa       ¿Cuánto pesa el archivo de efemérides que usa la fase lunar?
+      0.20       1.00    0.33    1  directa       ¿Qué iluminación tendrá la Luna para las Gemínidas de 2026?
+      0.20       1.00    0.33    1  directa       ¿Dónde se guarda el registro de cada consulta del agente?
+      0.20       1.00    0.33    1  directa       ¿Qué se busca al revisar las trazas cada semana?
+      0.20       1.00    0.33    1  directa       ¿Cuánto cuesta el millón de tokens de entrada del modelo?
+      0.20       1.00    0.33    1  directa       ¿Sirve cambiar la temperature para que las respuestas sean consistentes?
+      0.20       1.00    0.33    2  directa       ¿Con cuántos días de anticipación se puede pedir el pronóstico de nubes?
+      0.20       1.00    0.33    1  directa       ¿Qué lugares acepta la herramienta de pronóstico de nubes?
+      0.20       1.00    0.33    1  directa       ¿Cuántas personas se pueden incluir en una reserva de observatorio?
+      0.20       1.00    0.33    1  directa       ¿Qué pasa si nadie aprueba la reserva a tiempo?
+      0.20       1.00    0.33    1  parafraseada  ¿Por qué la app a veces se niega a contestar si hago muchas preguntas seguidas?
+      0.20       1.00    0.33    1  parafraseada  ¿Necesito internet para saber cuánta luna habrá una noche?
+      0.20       1.00    0.33    1  parafraseada  ¿Conviene salir a mirar galaxias cuando la luna está redonda?
+      0.20       1.00    0.33    1  parafraseada  Si apago la aplicación, ¿el asistente sigue acordándose de nuestra charla?
+      0.20       1.00    0.33    2  parafraseada  ¿Puedo saber si va a estar despejado dentro de tres semanas?
+      0.20       1.00    0.33    1  parafraseada  ¿Mi lugar en el observatorio queda apartado de verdad?
+      0.40       0.67    0.50    1  amplia        ¿Cómo maneja la aplicación los errores de la API de Gemini?
+      0.40       1.00    0.57    3  amplia        ¿Qué controles pasa una reserva de observatorio antes de quedar aprobada?
+      0.40       1.00    0.57    1  amplia        ¿Cómo se calcula la luna para una noche y cuándo conviene observar?
+      0.40       1.00    0.57    1  amplia        ¿Qué impide que el agente invente datos de luna o de nubes?
+      0.40       1.00    0.57    1  amplia        ¿Qué modelo usa la aplicación y cuánto cuesta cada consulta?
+      n/a        n/a     n/a     -  sin_respuesta ¿Cuánto cuesta la entrada al observatorio Mamalluca?
+      n/a        n/a     n/a     -  sin_respuesta ¿Qué cámara conviene para fotografiar la Vía Láctea?
+promedio k=5 -> precision: 0.25  recall: 0.99  f1: 0.39  mrr: 0.93  (sin respuesta en el corpus, fuera del promedio: 2)
+  directa       (n=14) -> precision: 0.21  recall: 1.00  mrr: 0.96
+  parafraseada  (n= 6) -> precision: 0.20  recall: 1.00  mrr: 0.92
+  amplia        (n= 5) -> precision: 0.40  recall: 0.93  mrr: 0.87
+
