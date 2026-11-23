@@ -70,11 +70,33 @@ def enviar_peticion(url, body):
         raise RuntimeError("La respuesta no es un JSON válido. Intenta de nuevo en unos momentos.")
 
 #Funcion procesa y extraae datos
-def extraer_texto(datos):#Gemini devuelve un diccionario con la respuesta, de la cual se extrae el texto
+def partes_de_texto(datos):
+    """Textos de todas las partes de la respuesta, sin las de razonamiento ("thought": true).
+
+    Gemini puede dividir una misma respuesta en varias partes. Leer solo parts[0] (como hacía
+    extraer_texto antes del Bloque 30) corta la respuesta sin avisar: en
+    registros_latencia_costo.jsonl quedó "No, no conviene, ya" con 33 tokens de salida.
+    """
     try:
-        return datos["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
+        partes = datos["candidates"][0]["content"]["parts"]
+    except (KeyError, IndexError, TypeError):
         raise RuntimeError("La respuesta no contiene el formato esperado. Intenta de nuevo en unos momentos.")
+    textos = [p["text"] for p in partes if isinstance(p, dict) and "text" in p and not p.get("thought")]
+    if not textos:
+        raise RuntimeError("La respuesta no contiene el formato esperado. Intenta de nuevo en unos momentos.")
+    return textos
+
+
+def extraer_texto(datos):#Gemini devuelve un diccionario con la respuesta, de la cual se extrae el texto
+    return "".join(partes_de_texto(datos))#une todas las partes: con parts[0] solo, la respuesta podía salir cortada
+
+
+def motivo_de_termino(datos):
+    """finishReason del primer candidato ("STOP", "MAX_TOKENS", "SAFETY"...), o None si no viene."""
+    try:
+        return datos["candidates"][0].get("finishReason")
+    except (KeyError, IndexError, TypeError, AttributeError):
+        return None
 
 
 #Funcion limpia y valida la respuesta JSON del modelo (Bloque 10)

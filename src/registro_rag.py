@@ -20,6 +20,8 @@ Diferencias con el código de la página y de la profesora (fallos verificados):
 - Una consulta que falla también deja su línea, con el error y la etapa donde falló.
 - Con varios k, la pregunta se embebe una sola vez: comparar k=3 y k=6 no duplica el gasto
   de embeddings.
+- Bloque 30: cada línea guarda también `finish_reason` y `partes_texto`, y la respuesta se arma
+  con todas las partes de texto (antes solo con la primera, y una respuesta quedó cortada).
 """
 import argparse
 import json
@@ -32,7 +34,15 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from cliente import PRECIO_ENTRADA, PRECIO_SALIDA, con_reintento
-from consumir_gemini import MODELO, armar_peticion, calcular_costo, enviar_peticion, extraer_texto
+from consumir_gemini import (
+    MODELO,
+    armar_peticion,
+    calcular_costo,
+    enviar_peticion,
+    extraer_texto,
+    motivo_de_termino,
+    partes_de_texto,
+)
 from indexar_corpus import (
     CARPETA_VECTORSTORE,
     COLECCION,
@@ -191,6 +201,9 @@ def _registrar_k(pregunta, vector, info_embed, k, vectorstore, base, enviar, mod
         "factor_crecimiento": round(len(prompt) / len(pregunta), 1),
         "costo_usd": round(costo, 8) if costo is not None else None,
         "respuesta": respuesta,
+        # Bloque 30: para detectar respuestas cortadas (MAX_TOKENS) o divididas en varias partes.
+        "finish_reason": motivo_de_termino(datos),
+        "partes_texto": len(partes_de_texto(datos)),
         "citas": citas,
         "citas_validas": validas,
         "citas_inventadas": inventadas,
