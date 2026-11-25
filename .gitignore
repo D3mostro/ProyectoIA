@@ -27,3 +27,6 @@ data/
 # Índices de Chroma (se regeneran con python src/indexar_corpus.py)
 vectorstore/
 chroma_db/
+
+# Log de eventos del RAG 
+logs_rag.jsonl
