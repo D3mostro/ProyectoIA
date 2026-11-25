@@ -7,6 +7,8 @@ Diferencias con el `preflight_check` de la página (fallos verificados):
 - Revisa que la colección exista y tenga chunks (count() > 0), la causa más común de
   una recuperación vacía, y que el .jsonl de registros sea JSON Lines válido.
 - Usa rutas absolutas desde la raíz del proyecto: funciona sin importar desde dónde se ejecute.
+- Bloque 32 (matriz de riesgos): falla si los .txt de observatorios llevan más de 30 días sin
+  revisión humana, o si un .jsonl versionado tiene correo, RUT o celular (src/revision_corpus.py).
 """
 import argparse
 import json
@@ -15,6 +17,7 @@ from pathlib import Path
 import chromadb
 
 from indexar_corpus import CARPETA_VECTORSTORE, COLECCION, RAIZ
+from revision_corpus import problema_vigencia, problemas_pii
 
 ARCHIVO_REGISTROS = RAIZ / "registros_latencia_costo.jsonl"
 
@@ -54,9 +57,16 @@ def validar_jsonl(ruta):
     return malas
 
 
-def preflight_check(raiz=RAIZ, carpeta=CARPETA_VECTORSTORE, coleccion=COLECCION, registros=ARCHIVO_REGISTROS):
-    """Devuelve la lista de problemas encontrados (vacía si todo está en orden)."""
+def preflight_check(raiz=RAIZ, carpeta=CARPETA_VECTORSTORE, coleccion=COLECCION, registros=ARCHIVO_REGISTROS,
+                    observatorios=None, hoy=None):
+    """Devuelve la lista de problemas encontrados (vacía si todo está en orden).
+
+    `observatorios`: carpeta de los .txt de observatorios; por defecto, la del corpus real al
+    lado de la carpeta del curso. Si no existe (clon limpio), no se revisa la vigencia.
+    """
     raiz, carpeta = Path(raiz), Path(carpeta)
+    if observatorios is None:
+        observatorios = raiz.parent.parent / "Corpus RAG astroturismo" / "originales" / "observatorios_turisticos"
     problemas = []
 
     gitignore = raiz / ".gitignore"
@@ -85,6 +95,11 @@ def preflight_check(raiz=RAIZ, carpeta=CARPETA_VECTORSTORE, coleccion=COLECCION,
     malas = validar_jsonl(registros)
     if malas:
         problemas.append(f"{Path(registros).name}: líneas que no son JSON válido: {malas}")
+
+    vigencia = problema_vigencia(observatorios, raiz / "revision_observatorios.json", hoy)
+    if vigencia:
+        problemas.append(vigencia)
+    problemas += problemas_pii(raiz)
     return problemas
 
 

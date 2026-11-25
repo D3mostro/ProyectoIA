@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -93,3 +94,44 @@ def test_main_registra_dos_versiones(tmp_path, capsys):
     assert rp.main(["--archivo", str(archivo)]) == 0  # segunda corrida no duplica
     assert len(rp.RegistroDePrompts(archivo).versiones) == 2
     assert "huellas distintas? True" in capsys.readouterr().out
+
+
+def test_separar_prompt_es_inverso_de_texto_b31():
+    assert rp.separar_prompt(rp.texto_prompt_b31("S", "U {contexto} {pregunta}")) == ("S", "U {contexto} {pregunta}")
+    assert rp.separar_prompt("solo usuario {contexto}") == ("", "solo usuario {contexto}")
+
+
+def test_prompt_activo_exige_activacion_y_placeholders(tmp_path):
+    archivo = tmp_path / "reg.json"
+    registro = rp.RegistroDePrompts(archivo)
+    sin = registro.registrar(rp.NOMBRE_PROMPT, "sin marcadores", "G", "x")
+    with pytest.raises(ValueError, match="No hay una versión activa"):
+        rp.prompt_activo(archivo=archivo)
+    registro.activar(rp.NOMBRE_PROMPT, sin["huella"], "G", "x")
+    with pytest.raises(ValueError, match="contexto"):
+        rp.prompt_activo(archivo=archivo)
+    ok = registro.registrar(rp.NOMBRE_PROMPT, rp.texto_prompt_b31("S", "C {contexto} P {pregunta}"), "G", "y")
+    registro.activar(rp.NOMBRE_PROMPT, ok["huella"], "G", "y")
+    assert rp.prompt_activo(archivo=archivo) == (ok["huella"], "S", "C {contexto} P {pregunta}")
+
+
+def test_registro_editado_a_mano_no_se_carga(tmp_path):
+    archivo = tmp_path / "reg.json"
+    registro = rp.RegistroDePrompts(archivo)
+    v = registro.registrar("p", "texto original", "G", "x")
+    registro.activar("p", v["huella"], "G", "x")
+    datos = json.loads(archivo.read_text(encoding="utf-8"))
+    datos["versiones"][0]["texto"] = "texto cambiado sin registrar"
+    archivo.write_text(json.dumps(datos), encoding="utf-8")
+    with pytest.raises(ValueError, match="alterado"):
+        rp.RegistroDePrompts(archivo)
+    datos["versiones"][0]["texto"] = "texto original"
+    datos["activaciones"][0]["huella"] = "000000000000"
+    archivo.write_text(json.dumps(datos), encoding="utf-8")
+    with pytest.raises(ValueError, match="no está registrada"):
+        rp.RegistroDePrompts(archivo)
+
+
+def test_registro_real_del_repo_tiene_version_activa():
+    activo = rp.prompt_activo()
+    assert "{contexto}" in activo.plantilla and "{pregunta}" in activo.plantilla

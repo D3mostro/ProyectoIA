@@ -214,3 +214,32 @@ def test_preflight_marca_jsonl_roto(tmp_path):
     (tmp_path / "r.jsonl").write_text('{"k": 3}\n{roto\n', encoding="utf-8")
     problemas = preflight_check(tmp_path, tmp_path / "vectorstore", "astroturismo", tmp_path / "r.jsonl")
     assert any("[2]" in p for p in problemas)
+
+
+def test_preflight_b32_frena_observatorios_vencidos_y_pii(tmp_path):
+    from datetime import date
+    (tmp_path / ".gitignore").write_text(".env\nvectorstore/\n", encoding="utf-8")
+    obs = tmp_path / "obs"
+    obs.mkdir()
+    (obs / "eso.txt").write_text("Descargado: 2026-10-10\n\nVisitas los sábados", encoding="utf-8")
+    (tmp_path / "trazas_agente.jsonl").write_text('{"entrada": "soy ana@correo.cl"}\n', encoding="utf-8")
+    problemas = preflight_check(tmp_path, tmp_path / "vectorstore", "astroturismo", tmp_path / "r.jsonl",
+                                observatorios=obs, hoy=date(2026, 11, 25))
+    assert any("observatorios sin revisar" in p for p in problemas)
+    assert any("trazas_agente.jsonl" in p and "correo" in p for p in problemas)
+
+
+def test_b32_usa_el_prompt_activo_con_system_instruction(vectorstore):
+    from registro_prompts import prompt_activo
+    enviados = []
+    base = api_falsa()
+
+    def enviar(url, body):
+        enviados.append(body)
+        return base(url, body)
+
+    (r,) = registrar(vectorstore, enviar=enviar)
+    activo = prompt_activo()
+    assert r["prompt_huella"] == activo.huella
+    assert enviados[0]["systemInstruction"]["parts"][0]["text"] == activo.sistema
+    assert enviados[0]["contents"][0]["parts"][0]["text"].startswith(activo.plantilla.split("{contexto}")[0])

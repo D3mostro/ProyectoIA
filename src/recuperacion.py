@@ -10,6 +10,9 @@ Diferencias con el código de la página (fallos verificados con embeddings fals
 - No pide borrar `vectorstore/` ni reindexar: el índice ya tiene "fuente" e ids por chunk.
 - El regex de citas también reconoce "[1, 2]", no solo "[1][2]".
 - Agrega `responder()`: llama al modelo y separa citas válidas de las inventadas.
+- Bloque 32: el prompt sale de `registro_prompts.prompt_activo()` (la versión aprobada con
+  `grafo_supervision.py`), no de una constante. `PROMPT_TEMPLATE` queda como el texto de la
+  versión 1 que se registró.
 """
 import argparse
 import os
@@ -17,6 +20,7 @@ import re
 
 from dotenv import load_dotenv
 
+from registro_prompts import prompt_activo
 from indexar_corpus import (
     CARPETA_VECTORSTORE,
     COLECCION,
@@ -76,14 +80,17 @@ def recuperar(vectorstore, pregunta, k=K_POR_DEFECTO):
     return chunks
 
 
-def construir_prompt(pregunta, vectorstore, k=K_POR_DEFECTO):
+def construir_prompt(pregunta, vectorstore, k=K_POR_DEFECTO, activo=None):
     """Recupera los k chunks más relevantes y arma el prompt dinámico. Devuelve (prompt, citas).
 
     Recibe el vector store ya conectado (con `conectar`) para no reconectarse en cada pregunta.
+    `activo` es un PromptActivo; si no se pasa, se lee el aprobado en registro_prompts.json.
+    El texto de sistema (si la versión lo tiene) va aparte: ver `responder`.
     """
+    activo = activo or prompt_activo()
     chunks = recuperar(vectorstore, pregunta, k)
     contexto, citas = formatear_contexto(chunks)
-    prompt = PROMPT_TEMPLATE.format(contexto=contexto, pregunta=pregunta)
+    prompt = activo.plantilla.format(contexto=contexto, pregunta=pregunta)
     return prompt, citas
 
 
@@ -112,14 +119,17 @@ def validar_citas(respuesta, citas):
 def responder(pregunta, vectorstore, consultar=None, k=K_POR_DEFECTO):
     """Flujo completo: prompt con contexto citado -> modelo -> citas validadas.
 
-    `consultar` recibe el prompt y devuelve el texto del modelo (por defecto, cliente.consultar_modelo).
+    `consultar(prompt, system_instruction)` devuelve el texto del modelo (por defecto,
+    cliente.consultar_modelo). Usa la versión de prompt activa y devuelve su huella.
     """
     if consultar is None:
         from cliente import consultar_modelo as consultar
-    prompt, citas = construir_prompt(pregunta, vectorstore, k)
-    respuesta = consultar(prompt)
+    activo = prompt_activo()
+    prompt, citas = construir_prompt(pregunta, vectorstore, k, activo=activo)
+    respuesta = consultar(prompt, system_instruction=activo.sistema)
     validas, invalidas = validar_citas(respuesta, citas)
     return {
+        "prompt_huella": activo.huella,
         "pregunta": pregunta,
         "respuesta": respuesta,
         "citas": citas,

@@ -57,4 +57,48 @@ def test_main_validar_sale_cero(capsys):
     assert m.main(["--validar"]) == 0
     salida = capsys.readouterr().out
     assert "Entrega OK" in salida
-    assert "AVISO: supervisión pendiente" in salida
+    assert "AVISO" not in salida
+
+
+def test_alto_con_supervision_pendiente_falla():
+    riesgos = m.calcular(copy.deepcopy(m.mis_riesgos))
+    alto = next(r for r in riesgos if r["categoria"] == "ALTO")
+    alto["supervision"] = "Revisión mensual (pendiente)"
+    assert any("pendiente de construir" in p for p in m.problemas_de_entrega(riesgos))
+
+
+def test_medio_puede_quedar_pendiente_sin_fallar():
+    riesgos = m.calcular(copy.deepcopy(m.mis_riesgos))
+    medio = next(r for r in riesgos if r["categoria"] == "MEDIO")
+    medio["supervision"] = "PENDIENTE"
+    assert m.problemas_de_entrega(riesgos) == []
+
+
+def test_cada_fila_tiene_id_justificacion_evidencia_y_estado():
+    for r in m.mis_riesgos:
+        for campo in m.CAMPOS_OBLIGATORIOS:
+            assert str(r.get(campo, "")).strip(), (r.get("id"), campo)
+    assert len({r["id"] for r in m.mis_riesgos}) == len(m.mis_riesgos)
+
+
+def test_falta_un_campo_obligatorio_falla():
+    riesgos = m.calcular(copy.deepcopy(m.mis_riesgos))
+    riesgos[0]["estado"] = ""
+    assert any("sin estado" in p for p in m.problemas_de_entrega(riesgos))
+
+
+def test_evidencia_que_cita_un_test_inexistente_falla():
+    riesgos = m.calcular(copy.deepcopy(m.mis_riesgos))
+    riesgos[0]["evidencia"] += "; test_que_no_existe_en_ningun_lado"
+    assert any("test_que_no_existe_en_ningun_lado" in p for p in m.problemas_de_entrega(riesgos))
+
+
+def test_exportar_markdown(tmp_path):
+    riesgos = m.calcular(copy.deepcopy(m.mis_riesgos))
+    archivo = m.exportar_markdown(riesgos, tmp_path / "docs" / "matriz.md")
+    texto = archivo.read_text(encoding="utf-8")
+    assert "riesgo residual" in texto
+    assert texto.count("\n| R") == len(riesgos)
+    for r in riesgos:
+        assert f"## {r['id']} ({r['categoria']}, {r['puntaje']})" in texto
+    assert "no corresponde (MEDIO)" in texto

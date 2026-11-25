@@ -53,7 +53,8 @@ from indexar_corpus import (
     conectar,
     describir_error_api,
 )
-from recuperacion import PROMPT_TEMPLATE, SinContexto, formatear_contexto, validar_citas
+from recuperacion import SinContexto, formatear_contexto, validar_citas
+from registro_prompts import prompt_activo
 
 ARCHIVO_REGISTROS = RAIZ / "registros_latencia_costo.jsonl"
 KS_POR_DEFECTO = (3, 6)
@@ -173,11 +174,13 @@ def _registrar_k(pregunta, vector, info_embed, k, vectorstore, base, enviar, mod
 
         etapa = "armado_prompt"
         with medir(tiempos, "armado_prompt"):
+            activo = prompt_activo()  # B32: la versión aprobada, no una constante
             contexto, citas = formatear_contexto(chunks)
-            prompt = PROMPT_TEMPLATE.format(contexto=contexto, pregunta=pregunta)
+            prompt = activo.plantilla.format(contexto=contexto, pregunta=pregunta)
 
         etapa = "generacion"
-        url, body = armar_peticion(prompt, modelo=modelo)
+        url, body = armar_peticion(prompt, modelo=modelo, system_instruction=activo.sistema or None)
+        prompt = activo.sistema + prompt  # para medir tokens y factor con el sistema incluido
         datos, info_gen = con_cronometro(reintentar_generacion, lambda: enviar(url, body))
         tiempos["generacion"] = info_gen["s"]
         respuesta = extraer_texto(datos)
@@ -191,6 +194,7 @@ def _registrar_k(pregunta, vector, info_embed, k, vectorstore, base, enviar, mod
         "timestamp": datetime.now(timezone.utc).isoformat(),
         **base,
         "k": k,
+        "prompt_huella": activo.huella,
         "tiempos_ms": {nombre: _ms(s) for nombre, s in tiempos.items()},
         "tiempo_total_ms": _ms(sum(tiempos.values())),
         "espera_reintentos_ms": _ms(info_embed["espera_s"] + info_gen["espera_s"]),

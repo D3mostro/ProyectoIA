@@ -29,7 +29,7 @@ def test_se_detiene_en_el_interrupt_con_diff(entorno):
 def test_aprobar_activa_y_queda_en_el_archivo(entorno, tmp_path):
     registro, _, v2, app = entorno
     config, _ = gs.proponer_despliegue(app, v2["huella"], nombre="p")
-    final = gs.resolver(app, config, True)
+    final = gs.resolver(app, config, True, v2["huella"])
     assert final["aprobado"] is True
     assert RegistroDePrompts(tmp_path / "reg.json").activa("p")["huella"] == v2["huella"]
     assert RegistroDePrompts(tmp_path / "reg.json").activaciones[-1]["aprobador"] == "German"
@@ -38,7 +38,7 @@ def test_aprobar_activa_y_queda_en_el_archivo(entorno, tmp_path):
 def test_rechazar_mantiene_la_anterior(entorno):
     registro, v1, v2, app = entorno
     config, _ = gs.proponer_despliegue(app, v2["huella"], nombre="p")
-    final = gs.resolver(app, config, False)
+    final = gs.resolver(app, config, False, v2["huella"])
     assert final["aprobado"] is False
     assert "rechazada" in final["resultado"]
     assert registro.activa("p")["huella"] == v1["huella"]
@@ -58,12 +58,12 @@ def test_resolver_exige_bool_y_pendiente(entorno):
     _, _, v2, app = entorno
     config, _ = gs.proponer_despliegue(app, v2["huella"], nombre="p")
     with pytest.raises(TypeError):
-        gs.resolver(app, config, "s")
-    gs.resolver(app, config, True)
+        gs.resolver(app, config, "s", v2["huella"])
+    gs.resolver(app, config, True, v2["huella"])
     with pytest.raises(ValueError):
-        gs.resolver(app, config, True)  # aprobación duplicada
+        gs.resolver(app, config, True, v2["huella"])  # aprobación duplicada
     with pytest.raises(ValueError):
-        gs.resolver(app, {"configurable": {"thread_id": "no-existe"}}, True)
+        gs.resolver(app, {"configurable": {"thread_id": "no-existe"}}, True, v2["huella"])
 
 
 def test_huella_desconocida_falla_antes_de_pedir_aprobacion(entorno):
@@ -84,3 +84,24 @@ def test_demo_corre(capsys):
     assert gs.main(["--demo"]) == 0
     salida = capsys.readouterr().out
     assert "rechazada" in salida and "activada" in salida and "ValueError" in salida
+
+
+def test_resolver_rechaza_una_huella_distinta_a_la_revisada(entorno):
+    registro, v1, v2, app = entorno
+    config, _ = gs.proponer_despliegue(app, v2["huella"], nombre="p")
+    with pytest.raises(ValueError, match="no es la revisada"):
+        gs.resolver(app, config, True, v1["huella"])
+    assert gs.pendiente(app, config) is not None  # sigue pendiente, nada se activó
+    assert registro.activa("p")["huella"] == v1["huella"]
+
+
+def test_no_activa_si_la_version_activa_cambio_durante_la_revision(entorno, tmp_path):
+    registro, v1, v2, app = entorno
+    config, _ = gs.proponer_despliegue(app, v2["huella"], nombre="p")
+    # Otro proceso activa una tercera versión mientras la solicitud espera.
+    otro = RegistroDePrompts(tmp_path / "reg.json")
+    v3 = otro.registrar("p", "Tercera version.", "G", "otra")
+    otro.activar("p", v3["huella"], "Otra persona", "en paralelo")
+    with pytest.raises(ValueError, match="cambio durante la revision"):
+        gs.resolver(app, config, True, v2["huella"])
+    assert RegistroDePrompts(tmp_path / "reg.json").activa("p")["huella"] == v3["huella"]

@@ -7,6 +7,7 @@ from indexar_corpus import conectar, indexar, partir_en_chunks
 from recuperacion import (
     PROMPT_TEMPLATE,
     SinContexto,
+    prompt_activo,
     construir_prompt,
     extraer_citas,
     formatear_contexto,
@@ -47,17 +48,27 @@ def test_construir_prompt_cumple_lo_que_exige_la_actividad(vectorstore):
     assert list(citas) == [1, 2, 3]  # exactamente k entradas, claves 1..k
     assert "desconocida" not in citas.values()
     assert all(f.endswith(".md") for f in citas.values())  # archivos reales del corpus
-    assert f"Pregunta: {pregunta}\n" in prompt  # pregunta exacta, sin recortar
+    assert f"Pregunta: {pregunta}" in prompt  # pregunta exacta, sin recortar
     for n in citas:
         assert f"[{n}] " in prompt
     assert "[4] " not in prompt
-    assert prompt.startswith(PROMPT_TEMPLATE.split("{contexto}")[0])
+    # B32: usa la plantilla de la versión aprobada, no la constante del B26
+    assert prompt.startswith(prompt_activo().plantilla.split("{contexto}")[0])
+
+
+def test_construir_prompt_usa_la_version_activa_y_no_la_constante(vectorstore):
+    activo = prompt_activo()
+    falso = activo._replace(plantilla="PROMPT DE PRUEBA {contexto} -- {pregunta}")
+    prompt, _ = construir_prompt("reserva", vectorstore, k=1, activo=falso)
+    assert prompt.startswith("PROMPT DE PRUEBA [1] ") and prompt.endswith("-- reserva")
+    assert PROMPT_TEMPLATE.split("{contexto}")[0] not in prompt
 
 
 def test_construir_prompt_preguntas_distintas_traen_contexto_distinto(vectorstore):
     p1, _ = construir_prompt("reserva del observatorio", vectorstore)
     p2, _ = construir_prompt("fase lunar y luna llena", vectorstore)
-    assert p1.split("Contexto:")[1].split("Pregunta:")[0] != p2.split("Contexto:")[1].split("Pregunta:")[0]
+    # El bloque de contexto va entre "[1] " y la línea "Pregunta:" en cualquier versión del prompt.
+    assert p1.split("[1] ", 1)[1].split("Pregunta:")[0] != p2.split("[1] ", 1)[1].split("Pregunta:")[0]
 
 
 def test_coleccion_equivocada_falla_claro_en_vez_de_devolver_vacio(tmp_path):
@@ -116,19 +127,22 @@ def test_validar_citas_separa_las_inventadas():
 def test_responder_usa_el_prompt_y_valida_citas(vectorstore):
     recibido = []
 
-    def modelo_falso(prompt):
-        recibido.append(prompt)
+    def modelo_falso(prompt, system_instruction=""):
+        recibido.append((prompt, system_instruction))
         return "La reserva se cancela si nadie aprueba [1]. Dato extra [7]."
 
     resultado = responder("¿Qué pasa si nadie aprueba mi reserva?", vectorstore, consultar=modelo_falso, k=3)
-    assert "Pregunta: ¿Qué pasa si nadie aprueba mi reserva?" in recibido[0]
+    assert "Pregunta: ¿Qué pasa si nadie aprueba mi reserva?" in recibido[0][0]
+    activo = prompt_activo()
+    assert recibido[0][1] == activo.sistema  # el texto de sistema va aparte, no dentro del prompt
+    assert resultado["prompt_huella"] == activo.huella
     assert resultado["citas_validas"] == {1: resultado["citas"][1]}
     assert resultado["citas_invalidas"] == [7]
     assert resultado["sin_citas"] is False
 
 
 def test_responder_marca_respuesta_sin_citas(vectorstore):
-    resultado = responder("¿Capital de Australia?", vectorstore, consultar=lambda p: "El contexto no alcanza.")
+    resultado = responder("¿Capital de Australia?", vectorstore, consultar=lambda p, **_: "El contexto no alcanza.")
     assert resultado["sin_citas"] is True and resultado["citas_invalidas"] == []
 
 

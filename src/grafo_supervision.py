@@ -15,6 +15,9 @@ Diferencias con el código de la página y de la profesora (fallos verificados):
 - `resolver` (idea de la lección y de la profesora) revisa get_state antes de reanudar, para
   no aprobar algo que nadie revisó ni aprobar dos veces la misma solicitud. Además exige bool.
 - Proponer la huella que ya está activa no pide aprobación: no hay nada que decidir.
+- Ideas del repo del ayudante: `resolver` exige la huella que la persona revisó (no se aprueba
+  una versión distinta a la del diff) y "aplicar" vuelve a leer el registro y se niega a
+  activar si la versión activa cambió mientras se esperaba la aprobación.
 
 Límite: usa InMemorySaver, así que la solicitud pendiente se pierde si se cierra el proceso.
 Para que la aprobación sobreviva un reinicio hace falta `langgraph-checkpoint-sqlite` (no
@@ -85,6 +88,12 @@ def construir_grafo(registro, aprobador="German", checkpointer=None):
         if estado.get("decision_recibida") == "sin_cambios":
             return {"resultado": f"la version {estado['huella_nueva']} ya estaba activa"}
         if estado["aprobado"]:
+            registro.recargar()  # otro proceso pudo activar algo mientras se esperaba
+            activa = registro.activa(estado["nombre"])
+            if (activa["huella"] if activa else "") != estado["huella_activa"]:
+                raise ValueError("La version activa cambio durante la revision "
+                                 f"({estado['huella_activa'] or 'ninguna'} -> {activa['huella']}). "
+                                 "Inicia otra solicitud.")
             registro.activar(estado["nombre"], estado["huella_nueva"], aprobador,
                              motivo="aprobado en grafo_supervision")
             return {"resultado": f"version {estado['huella_nueva']} activada"}
@@ -119,11 +128,16 @@ def pendiente(app, config):
     return snapshot.interrupts[0].value if snapshot.next and snapshot.interrupts else None
 
 
-def resolver(app, config, aprobar):
+def resolver(app, config, aprobar, huella_revisada):
+    """Reanuda con la decisión. `huella_revisada` es la que la persona vio en el diff."""
     if not isinstance(aprobar, bool):
         raise TypeError("aprobar debe ser True o False.")
-    if pendiente(app, config) is None:
+    valor = pendiente(app, config)
+    if valor is None:
         raise ValueError("Este thread_id no tiene ninguna aprobación pendiente.")
+    if valor["huella_propuesta"] != huella_revisada:
+        raise ValueError(f"La huella pendiente ({valor['huella_propuesta']}) no es la revisada "
+                         f"({huella_revisada}).")
     return app.invoke(Command(resume=aprobar), config=config)
 
 
@@ -140,17 +154,17 @@ def demo():
         valor = pendiente(app, config)
         print("   pendiente:", valor["motivo"], valor["huella_activa"], "->", valor["huella_propuesta"])
         print("   diff:", len(valor["diff"]), "lineas")
-        print("  ", resolver(app, config, False)["resultado"])
+        print("  ", resolver(app, config, False, v2["huella"])["resultado"])
         print("   activa:", registro.activa(NOMBRE_PROMPT)["huella"])
 
         print("2) aprobación de", v2["huella"], "(otro thread_id)")
         config2, _ = proponer_despliegue(app, v2["huella"])
-        print("  ", resolver(app, config2, True)["resultado"])
+        print("  ", resolver(app, config2, True, v2["huella"])["resultado"])
         print("   activa:", registro.activa(NOMBRE_PROMPT)["huella"])
 
         print("3) aprobar otra vez el mismo thread_id")
         try:
-            resolver(app, config2, True)
+            resolver(app, config2, True, v2["huella"])
         except ValueError as error:
             print("   ValueError:", error)
     return 0
@@ -179,7 +193,7 @@ def main(argv=None):
     for linea in valor["diff"]:
         print(linea)
     respuesta = args.aprobar or input("¿Aprobar? (s/n): ").strip().lower()
-    print(resolver(app, config, respuesta == "s")["resultado"])
+    print(resolver(app, config, respuesta == "s", args.huella)["resultado"])
     return 0
 
 

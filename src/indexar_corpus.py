@@ -218,6 +218,13 @@ if __name__ == "__main__":
     except ValueError as error:
         raise SystemExit(str(error))
     fuentes = len({c.metadata["fuente"] for c in chunks})
+    # B32 (matriz de riesgos): no reindexar horarios de observatorios vencidos sin revisión humana.
+    from revision_corpus import revisar_vigencia_corpus
+    vigencia, aviso = revisar_vigencia_corpus(args.corpus, args.patron)
+    if aviso:
+        print("Aviso:", aviso)
+    if vigencia and not args.seco:
+        raise SystemExit("No se reindexa: " + vigencia)
     if args.seco:
         raise SystemExit(f"[seco] {len(chunks)} chunks de {fuentes} archivos; no se llamó a la API.")
 

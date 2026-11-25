@@ -20,8 +20,12 @@ Diferencias con el código de la página y de la profesora (fallos verificados):
 - La profesora importa `generar_huella` de `logs_rag.py`; aquí la función es local, con un
   test que confirma que da lo mismo que `logging_rag.huella`.
 
-Límite: "activa" es un dato del registro. `recuperacion.py` y `logging_rag.py` todavía no lo
-leen: cada uno sigue usando su constante. Unificarlos es el pendiente de la matriz (B32).
+- `prompt_activo()` es la única fuente del prompt que usan `recuperacion.py`, `registro_rag.py`
+  y `logging_rag.py` (idea del repo del ayudante): cambiar el prompt en producción exige
+  registrarlo y aprobarlo con `grafo_supervision.py`. Las constantes del código son solo el
+  texto de origen que se registra.
+- Al cargar, verifica que cada huella corresponda a su texto y que cada activación apunte a
+  una versión registrada (idea del ayudante): un registro editado a mano no se usa.
 
 Uso:
     python src/registro_prompts.py             # registra los prompts actuales y muestra el diff
@@ -31,6 +35,7 @@ import argparse
 import ast
 import difflib
 import json
+from typing import NamedTuple
 from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
@@ -59,12 +64,28 @@ class RegistroDePrompts:
 
     def __init__(self, archivo=ARCHIVO_REGISTRO):
         self.archivo = Path(archivo)
+        self.recargar()
+
+    def recargar(self):
+        """Vuelve a leer el archivo (otro proceso pudo activar una versión) y lo verifica."""
         if self.archivo.exists():
             datos = json.loads(self.archivo.read_text(encoding="utf-8"))
         else:
             datos = {"versiones": [], "activaciones": []}
         self.versiones = datos["versiones"]
         self.activaciones = datos["activaciones"]
+        self._verificar()
+
+    def _verificar(self):
+        for v in self.versiones:
+            if huella_prompt(v["texto"]) != v["huella"]:
+                raise ValueError(f"{self.archivo.name} alterado: la versión {v['huella']} no "
+                                 "coincide con su texto.")
+        huellas = {(v["nombre"], v["huella"]) for v in self.versiones}
+        for a in self.activaciones:
+            if (a["nombre"], a["huella"]) not in huellas:
+                raise ValueError(f"{self.archivo.name} alterado: se activó {a['huella']}, "
+                                 "que no está registrada.")
 
     def _guardar(self):
         datos = {"versiones": self.versiones, "activaciones": self.activaciones}
@@ -117,6 +138,32 @@ class RegistroDePrompts:
         self.activaciones.append(activacion)
         self._guardar()
         return activacion
+
+
+class PromptActivo(NamedTuple):
+    huella: str
+    sistema: str     # "" si la versión no separa systemInstruction (la del Bloque 26)
+    plantilla: str   # texto con {contexto} y {pregunta}
+
+
+def separar_prompt(texto):
+    """Inverso de texto_prompt_b31: devuelve (sistema, plantilla)."""
+    if texto.startswith("[system]\n") and "\n\n[user]\n" in texto:
+        sistema, plantilla = texto[len("[system]\n"):].split("\n\n[user]\n", 1)
+        return sistema, plantilla
+    return "", texto
+
+
+def prompt_activo(nombre=NOMBRE_PROMPT, archivo=ARCHIVO_REGISTRO):
+    """El prompt aprobado que deben usar todos los flujos RAG."""
+    version = RegistroDePrompts(archivo).activa(nombre)
+    if version is None:
+        raise ValueError(f"No hay una versión activa de {nombre} en {Path(archivo).name}. "
+                         "Regístrala con registro_prompts.py y apruébala con grafo_supervision.py.")
+    sistema, plantilla = separar_prompt(version["texto"])
+    if "{contexto}" not in plantilla or "{pregunta}" not in plantilla:
+        raise ValueError(f"La versión activa {version['huella']} no tiene {{contexto}} y {{pregunta}}.")
+    return PromptActivo(version["huella"], sistema, plantilla)
 
 
 def leer_constante(archivo, nombre):
