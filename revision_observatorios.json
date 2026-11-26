@@ -1,0 +1,32 @@
+[
+  {
+    "fecha": "2026-11-25T22:52:45+00:00",
+    "revisor": "German",
+    "nota": "revisé ESO, ALMA y Mamalluca",
+    "archivos": {
+      "alarkapin.txt": "2026-10-10",
+      "alfa_aldea.txt": "2026-10-10",
+      "cancana.txt": "2026-10-10",
+      "cruz_del_sur_combarbala.txt": "2026-10-10",
+      "elqui_domos.txt": "2026-10-10",
+      "mamalluca_municipal_vicuna.txt": "2026-10-10",
+      "omega_astronomico_mamalluca.txt": "2026-10-10",
+      "space_san_pedro.txt": "2026-10-10"
+    }
+  },
+  {
+    "fecha": "2026-11-25T23:10:45+00:00",
+    "revisor": "German",
+    "nota": "Claude revisó en vivo el 25-11 Alarkapin, Alfa Aldea, Cancana, Cruz del Sur, Elqui Domos, Space y Mamalluca. Cambiaron Cruz del Sur (horarios 21:00 y 23:00) y Cancana (horarios por temporada). Omega no se revisó.",
+    "archivos": {
+      "alarkapin.txt": "2026-10-10",
+      "alfa_aldea.txt": "2026-10-10",
+      "cancana.txt": "2026-11-25",
+      "cruz_del_sur_combarbala.txt": "2026-11-25",
+      "elqui_domos.txt": "2026-10-10",
+      "mamalluca_municipal_vicuna.txt": "2026-10-10",
+      "omega_astronomico_mamalluca.txt": "2026-10-10",
+      "space_san_pedro.txt": "2026-10-10"
+    }
+  }
+]
