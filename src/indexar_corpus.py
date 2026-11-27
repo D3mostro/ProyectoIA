@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+from limpieza_corpus import filtrar_chunks, resumir_descartes
+
 RAIZ = Path(__file__).resolve().parent.parent
 CARPETA_CORPUS = RAIZ / "corpus"
 CARPETA_VECTORSTORE = RAIZ / "vectorstore"
@@ -30,21 +32,29 @@ PATRON_COLECCION = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{1,510}[a-zA-Z0-9]$")
 PATRON_RETRY = re.compile(r"retry_delay\s*\{\s*seconds:\s*(\d+)|retryDelay['\"]?\s*:\s*['\"]?(\d+)")
 
 
-def chunks_de_documento(nombre_archivo, texto):
-    """Chunks de un archivo, con metadata "fuente" e ids deterministas "<ruta sin extensión>-<i>"."""
+def chunks_de_documento(nombre_archivo, texto, limpiar=True, descartes=None):
+    """Chunks de un archivo, con metadata "fuente" e ids deterministas "<ruta sin extensión>-<i>".
+
+    Con `limpiar`, quita después de numerar los chunks basura (limpieza_corpus.py): los que quedan
+    conservan su id y su texto, así reindexar solo borra y no gasta embeddings.
+    """
     partes = SPLITTER.create_documents([texto], metadatas=[{"fuente": nombre_archivo}])
     base = Path(nombre_archivo).with_suffix("").as_posix()
-    return partes, [f"{base}-{j}" for j in range(len(partes))]
+    ids = [f"{base}-{j}" for j in range(len(partes))]
+    if limpiar:
+        partes, ids = filtrar_chunks(partes, ids, texto, nombre_archivo, descartes)
+    return partes, ids
 
 
-def partir_en_chunks(carpeta=CARPETA_CORPUS, patron="*.md"):
+def partir_en_chunks(carpeta=CARPETA_CORPUS, patron="*.md", limpiar=True, descartes=None):
     """Devuelve (chunks, ids). "fuente" es la ruta relativa a la carpeta (busca en subcarpetas),
-    así dos archivos con el mismo nombre en carpetas distintas no chocan."""
+    así dos archivos con el mismo nombre en carpetas distintas no chocan.
+    Si se pasa `descartes` (lista), recibe (id, motivo, texto) de cada chunk que quitó la limpieza."""
     carpeta = Path(carpeta)
     chunks, ids = [], []
     for archivo in sorted(carpeta.rglob(patron)):
         relativa = archivo.relative_to(carpeta).as_posix()
-        partes, ids_doc = chunks_de_documento(relativa, archivo.read_text(encoding="utf-8"))
+        partes, ids_doc = chunks_de_documento(relativa, archivo.read_text(encoding="utf-8"), limpiar, descartes)
         chunks += partes
         ids += ids_doc
     return chunks, ids
@@ -174,6 +184,21 @@ def indexar(chunks, ids, embeddings, carpeta=CARPETA_VECTORSTORE, coleccion=COLE
     return vectorstore
 
 
+# Gate 2: un clon limpio solo tiene corpus/*.md (colección "astroturismo"); el corpus turístico
+# real ("astroturismo_real") vive solo en el PC de German. Se usa la primera que tenga chunks.
+COLECCIONES_PREFERIDAS = ("astroturismo_real", COLECCION)
+
+
+def elegir_coleccion(embeddings, carpeta=CARPETA_VECTORSTORE, pedida=None):
+    """Devuelve (vectorstore, nombre). Con `pedida`, solo esa; si no, la primera con chunks."""
+    candidatas = (pedida,) if pedida else COLECCIONES_PREFERIDAS
+    for nombre in candidatas:
+        vectorstore = conectar(embeddings, carpeta, nombre)
+        if vectorstore._collection.count() > 0:
+            return vectorstore, nombre
+    raise SystemExit(f"No hay chunks en {', '.join(candidatas)}: corre primero python src/indexar_corpus.py")
+
+
 def describir_error_api(error):
     mensaje = str(error)
     if isinstance(error, CuotaAgotada):
@@ -191,6 +216,10 @@ def leer_argumentos(argv=None):
     parser.add_argument("--coleccion", default=COLECCION, help="nombre de la colección de Chroma")
     parser.add_argument("--patron", default="*.md", help='archivos a indexar, ej. "*.txt"')
     parser.add_argument("--seco", action="store_true", help="solo parte en chunks y cuenta, sin API")
+    parser.add_argument("--sin-limpieza", action="store_true",
+                        help="no quita chunks basura (ojo: los vuelve a embeber si ya se habían quitado)")
+    parser.add_argument("--ver-descartes", action="store_true",
+                        help="imprime cada chunk que quita la limpieza (para revisarlos a mano)")
     args = parser.parse_args(argv)
     try:
         validar_coleccion(args.coleccion)
@@ -209,7 +238,13 @@ if __name__ == "__main__":
     if not os.environ.get("GEMINI_API_KEY"):
         raise SystemExit('Falta GEMINI_API_KEY. Defínela en tu archivo ".env" y vuelve a ejecutar.')
 
-    chunks, ids = partir_en_chunks(args.corpus, args.patron)
+    descartes = []
+    chunks, ids = partir_en_chunks(args.corpus, args.patron, not args.sin_limpieza, descartes)
+    if not args.sin_limpieza:
+        print(resumir_descartes(descartes, len(chunks) + len(descartes)))
+    if args.ver_descartes:
+        for id_, motivo, texto in descartes:
+            print(f"  [{motivo}] {id_}: {texto[:120]!r}")
     chunks, ids, saltados = deduplicar_chunks(chunks, ids)
     if saltados:
         print(f"Se saltaron {saltados} chunks duplicados (texto idéntico).")
@@ -225,6 +260,14 @@ if __name__ == "__main__":
         print("Aviso:", aviso)
     if vigencia and not args.seco:
         raise SystemExit("No se reindexa: " + vigencia)
+    # 27-11: auditoría por archivo (encabezado, fecha, texto roto, duplicados). Solo el corpus
+    # turístico (.txt) tiene encabezado; el de la app (.md) no se audita.
+    if args.patron.endswith(".txt"):
+        from auditar_corpus import auditar, formatear, hay_errores
+        hallazgos = auditar(args.corpus, args.patron)
+        print(formatear(hallazgos, fuentes))
+        if hay_errores(hallazgos) and not args.seco:
+            raise SystemExit("No se reindexa: corrige los ERROR de la auditoría (python src/auditar_corpus.py).")
     if args.seco:
         raise SystemExit(f"[seco] {len(chunks)} chunks de {fuentes} archivos; no se llamó a la API.")
 

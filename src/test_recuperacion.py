@@ -159,3 +159,35 @@ def test_argumentos():
     assert args.preguntas == ["¿pregunta?"] and args.k == 4 and args.solo_prompt
     with pytest.raises(SystemExit):
         leer_argumentos(["-k", "0"])
+
+
+# ---- 27-11: tope de fichas de oferentes en el contexto ----
+from recuperacion import seleccionar_chunks, recuperar  # noqa: E402
+
+
+def _doc(fuente, texto="x"):
+    return Document(page_content=texto, metadata={"fuente": fuente})
+
+
+FICHAS = [_doc(f"originales/oferentes_cielos_chile/00{i}_Tour.txt") for i in range(4)]
+TEXTOS = [_doc(f"originales/wikipedia_es/Articulo_{i}.txt") for i in range(4)]
+
+
+def test_pregunta_general_deja_a_lo_mas_una_ficha():
+    elegidos = seleccionar_chunks(FICHAS[:3] + TEXTOS, "¿Cómo afecta la luna a la observación?", 3)
+    assert elegidos == [FICHAS[0], TEXTOS[0], TEXTOS[1]]
+
+
+def test_pregunta_de_donde_o_reservar_permite_fichas():
+    for pregunta in ("¿Dónde hay astroturismo en la Araucanía?", "¿Qué tour acepta mascotas?",
+                     "¿Cómo reservo una visita?"):
+        assert seleccionar_chunks(FICHAS + TEXTOS, pregunta, 3) == FICHAS[:3]
+
+
+def test_sin_fichas_no_cambia_el_orden_y_respeta_k():
+    assert seleccionar_chunks(TEXTOS, "¿Qué es la escala de Bortle?", 2) == TEXTOS[:2]
+    assert seleccionar_chunks(TEXTOS[:1], "¿Qué es la escala de Bortle?", 3) == TEXTOS[:1]
+
+
+def test_recuperar_pide_candidatos_de_mas_y_devuelve_k(vectorstore):
+    assert len(recuperar(vectorstore, "¿Qué pasa si nadie aprueba mi reserva?", k=2)) == 2

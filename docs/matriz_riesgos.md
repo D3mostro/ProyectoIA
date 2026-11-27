@@ -9,7 +9,7 @@ Probabilidad (P) e impacto (I) de 1 a 5, como **riesgo residual**: con los contr
 | R1 | Respuesta con horarios o cupos de visita vencidos porque los .txt de observatorios no se vuelven a descargar | 4 | 3 | 12 | ALTO | Sí |
 | R2 | Texto libre del usuario (pregunta y respuesta) en trazas_agente.jsonl y registros_latencia_costo.jsonl, que están versionados y se suben a GitHub | 3 | 3 | 9 | ALTO | Sí |
 | R6 | Cuota de Gemini agotada (error 429) porque las dos carpetas del proyecto usan la misma clave | 4 | 2 | 8 | MEDIO | Sí |
-| R7 | Retiro de gemini-3.5-flash-lite o de gemini-embedding-001 sin aviso, que obliga a cambiar el modelo y reindexar los 2488 chunks | 2 | 4 | 8 | MEDIO | Sí |
+| R7 | Retiro de gemini-3.5-flash-lite o de gemini-embedding-001 sin aviso, que obliga a cambiar el modelo y reindexar los 3948 chunks | 2 | 4 | 8 | MEDIO | Sí |
 | R8 | El asistente responde 'el contexto no alcanza' en preguntas comunes de turistas (5 de 20 en la muestra del Bloque 30) | 4 | 2 | 8 | MEDIO | Sí |
 | R3 | Se activa una versión del prompt sin revisar su diff, o con un registro_prompts.json editado a mano | 2 | 3 | 6 | MEDIO | Sí |
 | R5 | Inyección de prompt vía texto de Wikipedia descargado al corpus con descargar_wikipedia.py | 2 | 3 | 6 | MEDIO | Sí |
@@ -28,10 +28,10 @@ Probabilidad (P) e impacto (I) de 1 a 5, como **riesgo residual**: con los contr
 ## R2 (ALTO, 9). Texto libre del usuario (pregunta y respuesta) en trazas_agente.jsonl y registros_latencia_costo.jsonl, que están versionados y se suben a GitHub
 
 - **Justificación:** Esos .jsonl guardan la pregunta y la respuesta completas y son evidencia de las entregas B23, B28 y B30, así que se suben al repo.
-- **Mitigación:** logging_rag.py registra solo largo y huella, nunca el texto (Bloque 31); preflight.py falla si un .jsonl versionado tiene correo, RUT o celular (revision_corpus.py, Bloque 32)
+- **Mitigación:** logging_rag.py registra solo largo y huella, nunca el texto (Bloque 31); desde el Gate 2, registro_rag.guardar_registro guarda en texto solo las preguntas fijas de evaluación y el agente guarda largo y huella del mensaje y de la respuesta; preflight.py falla si un .jsonl versionado tiene correo, RUT o celular (revision_corpus.py, Bloque 32)
 - **Punto de supervisión:** German corre preflight.py antes de cada push (él hace siempre el push a mano) y limpia la línea que marque
-- **Evidencia:** test_detecta_pii; test_no_marca_datos_normales; test_jsonl_reales_del_repo_sin_pii; test_logs_no_guardan_texto_de_pregunta_ni_respuesta
-- **Estado:** Chequeo integrado; los 3 .jsonl actuales pasan. No detecta nombres propios.
+- **Evidencia:** test_detecta_pii; test_no_marca_datos_normales; test_jsonl_reales_del_repo_sin_pii; test_logs_no_guardan_texto_de_pregunta_ni_respuesta; test_3b_registros_versionados_sin_texto_libre; test_gate2_pregunta_libre_no_se_guarda_en_texto
+- **Estado:** Integrado en el código (Gate 2). Las líneas viejas de trazas_agente.jsonl siguen con texto (sin PII real según preflight). Las respuestas a preguntas de evaluación pueden citar contactos del corpus.
 - **Nota:** Los .jsonl no se sacan del repo: son evidencia de las entregas B23, B28 y B30. El chequeo no detecta nombres propios: por eso sigue en probabilidad 3
 
 ## R6 (MEDIO, 8). Cuota de Gemini agotada (error 429) porque las dos carpetas del proyecto usan la misma clave
@@ -42,7 +42,7 @@ Probabilidad (P) e impacto (I) de 1 a 5, como **riesgo residual**: con los contr
 - **Evidencia:** test_con_reintentos_reintenta_429_con_backoff_exponencial; test_indexar_salta_chunks_ya_guardados_y_reembebe_los_cambiados
 - **Estado:** Integrado.
 
-## R7 (MEDIO, 8). Retiro de gemini-3.5-flash-lite o de gemini-embedding-001 sin aviso, que obliga a cambiar el modelo y reindexar los 2488 chunks
+## R7 (MEDIO, 8). Retiro de gemini-3.5-flash-lite o de gemini-embedding-001 sin aviso, que obliga a cambiar el modelo y reindexar los 3948 chunks
 
 - **Justificación:** El curso ya vio deprecarse text-embedding-004 en el Bloque 28.
 - **Mitigación:** preflight.py revisa que la colección exista y tenga chunks (Bloque 28); no detecta un modelo retirado (falta)
@@ -56,7 +56,7 @@ Probabilidad (P) e impacto (I) de 1 a 5, como **riesgo residual**: con los contr
 - **Mitigación:** Corpus ampliado con descargar_wikipedia.py (Bloque 30) y evaluación de k=3 contra k=5 (Bloque 27)
 - **Punto de supervisión:** no corresponde (MEDIO)
 - **Evidencia:** muestra_formato_b30.jsonl; test_trade_off_de_k_y_f1_maximo_en_k3
-- **Estado:** Brecha conocida; sin corrección todavía.
+- **Estado:** Medido de nuevo el 27-11 con el corpus limpio (3948 chunks): 5 de 20 con k=3 y también con k=5, así que k se queda en 3. Perfil familia (muestra_familia.jsonl): 2 de 6; 'silla de ruedas' no recupera las fichas que dicen 'movilidad reducida'.
 
 ## R3 (MEDIO, 6). Se activa una versión del prompt sin revisar su diff, o con un registro_prompts.json editado a mano
 

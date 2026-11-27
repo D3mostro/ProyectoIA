@@ -6,6 +6,7 @@ import threading
 import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
+from hashlib import sha256
 from math import cos, radians
 from pathlib import Path
 
@@ -302,16 +303,26 @@ def construir_agente_con_memoria(modelo):
     )
 
 
+def _huella(texto):
+    return sha256((texto or "").encode("utf-8")).hexdigest()[:12]
+
+
 def registrar_traza(session_id, entrada, resultado, archivo=ARCHIVO_TRAZAS):
+    # Gate 2 (no compensable 3, riesgo R2): el mensaje del turista y la respuesta pueden traer
+    # datos personales y este archivo se versiona. Se guardan largo y huella; las acciones
+    # (herramienta, argumentos validados y observación) sí, porque son datos estructurados.
+    respuesta = extraer_texto_final(resultado.get("output", ""))
     registro = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "session_id": session_id,
-        "entrada": entrada,
+        "entrada_chars": len(entrada or ""),
+        "entrada_huella": _huella(entrada),
         "acciones": [
             {"herramienta": accion.tool, "argumentos": accion.tool_input, "observacion": observacion}
             for accion, observacion in resultado.get("intermediate_steps", [])
         ],
-        "respuesta_final": extraer_texto_final(resultado.get("output", "")),
+        "respuesta_chars": len(respuesta),
+        "respuesta_huella": _huella(respuesta),
     }
     try:
         with open(archivo, "a", encoding="utf-8") as destino:

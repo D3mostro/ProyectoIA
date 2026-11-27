@@ -72,3 +72,15 @@ CASOS_EVALUACION = CASOS + [
         "referencia": "No se necesita un telescopio para empezar; bastan unos binoculares, una linterna roja y un mapa del cielo.",
     },
 ]
+
+
+# 27-11: perfil elegido = turista/familia. Estas preguntas usan las fichas de oferentes (mascotas,
+# movilidad reducida, alojamiento) y las páginas de visitas. Las corre `muestra_formato.py --familia`.
+PREGUNTAS_FAMILIA = (
+    "¿Qué tour astronómico en el Valle del Elqui acepta mascotas?",
+    "¿Hay observatorios turísticos con acceso para silla de ruedas cerca de Vicuña?",
+    "¿Cómo se visita el Observatorio Paranal y con cuánta anticipación hay que reservar?",
+    "¿Qué tengo que llevar para una noche de observación de estrellas con niños?",
+    "¿Dónde puedo hacer un tour astronómico con alojamiento en San Pedro de Atacama?",
+    "¿Qué se puede ver en el cielo de Chile que no se ve desde Europa?",
+)

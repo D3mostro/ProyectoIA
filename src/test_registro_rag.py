@@ -243,3 +243,21 @@ def test_b32_usa_el_prompt_activo_con_system_instruction(vectorstore):
     assert r["prompt_huella"] == activo.huella
     assert enviados[0]["systemInstruction"]["parts"][0]["text"] == activo.sistema
     assert enviados[0]["contents"][0]["parts"][0]["text"].startswith(activo.plantilla.split("{contexto}")[0])
+
+
+def test_gate2_pregunta_libre_no_se_guarda_en_texto(tmp_path):
+    from registro_rag import para_guardar, preguntas_de_evaluacion
+    libre = {"pregunta": "Soy Ana, ana@correo.cl", "respuesta": "Hola Ana", "k": 3, "costo_usd": 0.1}
+    limpio = para_guardar(libre)
+    assert "pregunta" not in limpio and "respuesta" not in limpio and limpio["texto_omitido"]
+    assert limpio["k"] == 3 and limpio["costo_usd"] == 0.1 and len(limpio["pregunta_huella"]) == 12
+    conocida = sorted(preguntas_de_evaluacion())[0]
+    assert para_guardar({"pregunta": conocida, "respuesta": "x"})["pregunta"] == conocida
+
+
+def test_gate2_las_preguntas_por_defecto_y_de_muestra_se_conservan():
+    from casos_evaluacion import PREGUNTAS_FAMILIA
+    from muestra_formato import consultas_de_la_muestra
+    from registro_rag import preguntas_de_evaluacion
+    conocidas = preguntas_de_evaluacion()
+    assert set(PREGUNTAS_POR_DEFECTO) | set(consultas_de_la_muestra()) | set(PREGUNTAS_FAMILIA) <= conocidas

@@ -111,3 +111,83 @@ def test_rehacer_exige_confirmar():
     with pytest.raises(SystemExit):
         leer_argumentos(["--revisar", "--rehacer-sin-contexto"])
     assert leer_argumentos(["--confirmar", "--rehacer-sin-contexto"]).rehacer_sin_contexto
+
+
+@pytest.mark.parametrize("texto", [
+    "El contexto no alcanza para responder.",
+    "El contexto recuperado no contiene información sobre el santuario.",
+    "El contexto proporcionado no contiene información sobre cuál es el mejor momento [1, 2, 3].",
+    "El contexto no menciona específicamente por qué se ven pocas estrellas en Santiago [2].",
+    "La información entregada no permite saber si se necesita telescopio.",
+    "No es posible responder con los datos entregados.",
+    "No hay información suficiente en los fragmentos.",
+])
+def test_sin_contexto_reconoce_parafrasis(texto):
+    from muestra_formato import sin_contexto
+    assert sin_contexto([_registro(texto, pregunta="a", validas={})], ["a"]) == ["a"]
+
+
+@pytest.mark.parametrize("texto", [
+    "Sí, se puede: el norte tiene cielos despejados [1].",
+    "No, no conviene salir con luna llena, porque aclara el cielo [2].",
+    "Venus no es una estrella, es un planeta [1].",
+])
+def test_sin_contexto_no_marca_respuestas_normales(texto):
+    from muestra_formato import sin_contexto
+    assert sin_contexto([_registro(texto, pregunta="a")], ["a"]) == []
+
+
+def test_archivo_para_k_separa_experimentos():
+    from muestra_formato import ARCHIVO_MUESTRA, K_MUESTRA, archivo_para_k
+    assert archivo_para_k(K_MUESTRA) == ARCHIVO_MUESTRA
+    assert archivo_para_k(5).name == "muestra_formato_b30_k5.jsonl"
+    assert archivo_para_k(5).parent == ARCHIVO_MUESTRA.parent
+
+
+def test_fuentes_citadas_sin_repetir_y_solo_nombre():
+    from muestra_formato import fuentes_citadas
+    registro = {"citas_validas": {"1": "originales/wikipedia_es/Año_luz.txt",
+                                  "2": "originales\\wikipedia_es\\Año_luz.txt",
+                                  "3": "originales/wikipedia_es/Fase_lunar.txt"}}
+    assert fuentes_citadas(registro) == ["Año_luz.txt", "Fase_lunar.txt"]
+    assert fuentes_citadas({}) == []
+
+
+def test_argumentos_k_y_solo_sin_contexto():
+    from muestra_formato import K_MUESTRA, leer_argumentos
+    args = leer_argumentos(["--confirmar", "--solo-sin-contexto", "--k", "5"])
+    assert (args.k, args.solo_sin_contexto) == (5, True)
+    assert leer_argumentos(["--revisar"]).k == K_MUESTRA
+    with pytest.raises(SystemExit):
+        leer_argumentos(["--revisar", "--k", "0"])
+
+
+def test_rehacer_todas_exige_confirmar():
+    from muestra_formato import leer_argumentos
+    with pytest.raises(SystemExit):
+        leer_argumentos(["--revisar", "--rehacer-todas"])
+    assert leer_argumentos(["--confirmar", "--rehacer-todas"]).rehacer_todas
+
+
+def test_muestra_familia_va_a_su_propio_archivo():
+    from muestra_formato import ARCHIVO_FAMILIA, ARCHIVO_MUESTRA, PREGUNTAS_FAMILIA, archivo_para_k
+    assert archivo_para_k(3, ARCHIVO_FAMILIA) == ARCHIVO_FAMILIA != ARCHIVO_MUESTRA
+    assert archivo_para_k(5, ARCHIVO_FAMILIA).name == "muestra_familia_k5.jsonl"
+    assert archivo_para_k(3) == ARCHIVO_MUESTRA
+    assert len(PREGUNTAS_FAMILIA) == len(set(PREGUNTAS_FAMILIA))
+    assert not set(PREGUNTAS_FAMILIA) & set(consultas_de_la_muestra())
+
+
+def test_familia_activa_el_tope_de_oferentes_donde_corresponde():
+    # Las preguntas de mascotas, silla de ruedas, reservas y alojamiento deben poder traer
+    # varias fichas de oferentes (recuperacion.PATRON_PREGUNTA_OFERENTES).
+    from muestra_formato import PREGUNTAS_FAMILIA
+    from recuperacion import PATRON_PREGUNTA_OFERENTES
+    assert sum(bool(PATRON_PREGUNTA_OFERENTES.search(p)) for p in PREGUNTAS_FAMILIA) >= 4
+
+
+def test_familia_no_va_con_solo_sin_contexto():
+    from muestra_formato import leer_argumentos
+    with pytest.raises(SystemExit):
+        leer_argumentos(["--confirmar", "--familia", "--solo-sin-contexto"])
+    assert leer_argumentos(["--revisar", "--familia"]).familia

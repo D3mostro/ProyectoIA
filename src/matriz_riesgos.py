@@ -94,13 +94,19 @@ mis_riesgos = [
      "justificacion": "Esos .jsonl guardan la pregunta y la respuesta completas y son evidencia "
                       "de las entregas B23, B28 y B30, así que se suben al repo.",
      "mitigacion": "logging_rag.py registra solo largo y huella, nunca el texto (Bloque 31); "
-                   "preflight.py falla si un .jsonl versionado tiene correo, RUT o celular "
-                   "(revision_corpus.py, Bloque 32)",
+                   "desde el Gate 2, registro_rag.guardar_registro guarda en texto solo las "
+                   "preguntas fijas de evaluación y el agente guarda largo y huella del mensaje "
+                   "y de la respuesta; preflight.py falla si un .jsonl versionado tiene correo, "
+                   "RUT o celular (revision_corpus.py, Bloque 32)",
      "supervision": "German corre preflight.py antes de cada push (él hace siempre el push a "
                     "mano) y limpia la línea que marque",
      "evidencia": "test_detecta_pii; test_no_marca_datos_normales; test_jsonl_reales_del_repo_sin_pii; "
-                  "test_logs_no_guardan_texto_de_pregunta_ni_respuesta",
-     "estado": "Chequeo integrado; los 3 .jsonl actuales pasan. No detecta nombres propios.",
+                  "test_logs_no_guardan_texto_de_pregunta_ni_respuesta; "
+                  "test_3b_registros_versionados_sin_texto_libre; "
+                  "test_gate2_pregunta_libre_no_se_guarda_en_texto",
+     "estado": "Integrado en el código (Gate 2). Las líneas viejas de trazas_agente.jsonl siguen "
+               "con texto (sin PII real según preflight). Las respuestas a preguntas de "
+               "evaluación pueden citar contactos del corpus.",
      "nota": "Los .jsonl no se sacan del repo: son evidencia de las entregas B23, B28 y B30. "
              "El chequeo no detecta nombres propios: por eso sigue en probabilidad 3"},
     {"id": "R3",
@@ -167,7 +173,7 @@ mis_riesgos = [
      "estado": "Integrado."},
     {"id": "R7",
      "riesgo": "Retiro de gemini-3.5-flash-lite o de gemini-embedding-001 sin aviso, que "
-               "obliga a cambiar el modelo y reindexar los 2488 chunks",
+               "obliga a cambiar el modelo y reindexar los 3948 chunks",
      "probabilidad": 2,
      "impacto": 4,       # sin embeddings compatibles la recuperación deja de funcionar
      "justificacion": "El curso ya vio deprecarse text-embedding-004 en el Bloque 28.",
@@ -187,7 +193,9 @@ mis_riesgos = [
                    "k=3 contra k=5 (Bloque 27)",
      "supervision": "",
      "evidencia": "muestra_formato_b30.jsonl; test_trade_off_de_k_y_f1_maximo_en_k3",
-     "estado": "Brecha conocida; sin corrección todavía."},
+     "estado": "Medido de nuevo el 27-11 con el corpus limpio (3948 chunks): 5 de 20 con k=3 y "
+               "también con k=5, así que k se queda en 3. Perfil familia (muestra_familia.jsonl): "
+               "2 de 6; 'silla de ruedas' no recupera las fichas que dicen 'movilidad reducida'."},
     {"id": "R9",
      "riesgo": "El enrutador elige mal la intención con mensajes distintos a las 4 consultas "
                "ya probadas",

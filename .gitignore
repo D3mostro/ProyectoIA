@@ -30,3 +30,7 @@ chroma_db/
 
 # Log de eventos del RAG 
 logs_rag.jsonl
+
+# Salidas locales que no se suben (27-11): descartes de la limpieza (texto del corpus) y experimento k=5
+descartes.txt
+muestra_formato_b30_k5.jsonl

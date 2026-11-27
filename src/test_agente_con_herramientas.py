@@ -266,7 +266,10 @@ def test_traza_guarda_una_linea_json_con_texto(tmp_path):
         "argumentos": {"fecha": "2026-12-14"},
         "observacion": "Luna creciente, 15 % iluminada la noche del 2026-12-14.",
     }
-    assert lineas[0]["respuesta_final"] == "Poca luna."
+    assert lineas[0]["respuesta_chars"] == len("Poca luna.") and len(lineas[0]["respuesta_huella"]) == 12
+    # Gate 2: ni el mensaje del turista ni la respuesta quedan en texto.
+    texto = archivo.read_text(encoding="utf-8")
+    assert "¿Cuánta luna habrá?" not in texto and "Poca luna." not in texto
     assert lineas[1]["acciones"] == []
 
 
@@ -355,7 +358,7 @@ def test_traza_no_rompe_si_falla_el_disco(tmp_path, capsys):
 def test_traza_sin_output_no_falla(tmp_path):
     archivo = tmp_path / "trazas.jsonl"
     registrar_traza("turista_1", "Hola", {}, archivo=archivo)
-    assert json.loads(archivo.read_text(encoding="utf-8"))["respuesta_final"] == ""
+    assert json.loads(archivo.read_text(encoding="utf-8"))["respuesta_chars"] == 0
 
 
 def test_momento_de_aprobacion_en_utc():

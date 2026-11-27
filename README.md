@@ -1,8 +1,10 @@
 # Planificador de astroturismo en Chile
 
-Miniaplicación en Python que consume la API de Google Gemini para responder consultas de astroturismo en Chile (qué se puede ver en un lugar y fecha, y cuándo conviene observar). Proyecto de la **Especialización en Desarrollo con IA Generativa (Accenture / Skillnest)**, Módulos 1 y 2.
+Miniaplicación en Python que consume la API de Google Gemini para responder consultas de astroturismo en Chile (qué se puede ver en un lugar y fecha, y cuándo conviene observar). Proyecto de la **Especialización en Desarrollo con IA Generativa (Accenture / Skillnest)**, Módulos 1 a 3.
 
-> **Estado actual (camino al Gate 2):** Gate 1 entregado (conexión autenticada a Gemini, banco de prompts con prueba de consistencia y comparación de modelos documentada). En el Módulo 2 se agregaron un cliente modular con reintentos y backoff exponencial, registro de costo por operación, pruebas unitarias con `pytest`, un pipeline de limpieza de texto y métricas de precisión, cobertura y F1 sobre las salidas del modelo. También hay un primer agente con dos herramientas (Skyfield y Open-Meteo). Todavía **no** hay interfaz ni RAG (ver [Hoja de ruta](#hoja-de-ruta)).
+**Usuario objetivo:** turistas y familias que planifican una salida a observar el cielo en Chile, sobre todo con tours y observatorios turísticos (decisión del 27-11-2026).
+
+> **Estado actual (Gate 2):** el asistente responde con RAG sobre un corpus de astroturismo, cita el archivo de cada fuente y deja trazas sin el texto de la pregunta ni de la respuesta. El servicio único es `src/servicio_rag.py` y los cuatro criterios no compensables del Gate 2 se prueban en `src/test_gate2.py`. Ver [Gate 2: usar el asistente](#gate-2-usar-el-asistente-desde-un-clon-limpio) y la [Hoja de ruta](#hoja-de-ruta).
 
 ---
 
@@ -40,6 +42,45 @@ GEMINI_API_KEY=tu_llave_real_aqui
 
 El archivo `.env` está en `.gitignore` y **nunca** se sube al repositorio.
 
+## Gate 2: usar el asistente (desde un clon limpio)
+
+Con el entorno instalado y `.env` listo, desde la raíz del repositorio:
+
+```powershell
+# 0. Revisar el entorno: paquetes, clave (sin imprimirla), .env ignorado e índice
+python src/verificar_entorno.py
+
+# 1. Pruebas (sin API ni cuota): incluye los 4 criterios no compensables del Gate 2
+python -m pytest -q
+python -m pytest src/test_gate2.py -v
+
+# 2. Servicio en modo simulado (sin API): índice temporal y modelo falso
+python src/servicio_rag.py --simulado
+
+# 3. Indexar el corpus del repo (corpus/*.md, 19 chunks, unos 19 embeddings la primera vez)
+python src/indexar_corpus.py
+
+# 4. Consultar de verdad (1 embedding + 1 llamada a Gemini por pregunta)
+python src/servicio_rag.py "¿Qué pasa si nadie aprueba mi reserva a tiempo?"
+```
+
+Salida esperada del paso 4: la colección usada, el estado (`ok`, `reconoce_limite`, `sin_cita`, `bloqueada` o `sin_contexto`), la respuesta y una línea `Fuentes: [1] archivo.md`. Las trazas quedan en `logs_rag.jsonl` (fuera de Git) con un `trace_id` por consulta, largo y huella de la pregunta y la respuesta, nunca su texto.
+
+**Qué colección usa.** `servicio_rag.py` busca primero `astroturismo_real`, el corpus turístico (174 archivos .txt de Wikipedia, observatorios turísticos, documentos oficiales y fichas de oferentes de la Fundación Cielos de Chile). Ese corpus no está en el repositorio por licencias, así que en un clon limpio no existe y el servicio usa `astroturismo` (los 6 .md de `corpus/`). Para elegir una a mano: `--coleccion astroturismo`.
+
+**Corpus turístico (solo en el PC del autor).** Se indexa con `python src/indexar_corpus.py --corpus "../../Corpus RAG astroturismo" --patron "*.txt" --coleccion astroturismo_real`. Antes de indexar, `auditar_corpus.py` revisa cada archivo (fecha de descarga, fuente, codificación, duplicados) y `limpieza_corpus.py` descarta chunks que no ayudan a responder (5067 a 3948 chunks el 27-11-2026, sin gastar embeddings). En Windows, si se redirige la salida a un archivo, usar `$env:PYTHONUTF8=1` antes del comando.
+
+**Cómo cumple cada criterio no compensable** (`src/test_gate2.py`):
+
+| Criterio | Cómo se cumple | Prueba |
+|---|---|---|
+| El pipeline corre de punta a punta | `servicio_rag.py` une índice persistido, recuperación, filtro de inyección, prompt aprobado, modelo y trazas | `test_1_servicio_corre_de_punta_a_punta`, `test_1b_clon_limpio_usa_la_coleccion_del_repo` |
+| Las respuestas citan su fuente | La respuesta termina con `Fuentes: [n] archivo`; si el modelo no cita nada ni reconoce el límite, el estado es `sin_cita` y trae un aviso | `test_2_respuesta_trae_el_nombre_del_archivo`, `test_2b_sin_cita_no_queda_ok` |
+| Logs sin contenido crudo | `logs_rag.jsonl` guarda largo y huella; `registros_latencia_costo.jsonl` guarda texto solo de las preguntas fijas de evaluación; `trazas_agente.jsonl` guarda largo y huella del mensaje del turista | `test_3_trazas_del_servicio_sin_texto_crudo`, `test_3b_registros_versionados_sin_texto_libre` |
+| La supervisión humana funciona | Una versión nueva del prompt solo se activa si una persona aprueba en el `interrupt()` de `grafo_supervision.py` | `test_4_supervision_pausa_y_solo_una_persona_activa`, `test_4b_rechazo_mantiene_la_version` |
+
+Antes de cada push: `python src/preflight.py` (revisa `.gitignore`, el índice, datos personales en los `.jsonl` versionados y la vigencia de las páginas de observatorios). La matriz de riesgos está en [`docs/matriz_riesgos.md`](docs/matriz_riesgos.md) el ensayo real del 27-11-2026 en [`docs/gate2_ensayo.md`](docs/gate2_ensayo.md) y la autoevaluación en [`docs/gate2_autoevaluacion.md`](docs/gate2_autoevaluacion.md).
+
 ## Cómo ejecutar
 
 Desde la raíz del repositorio, con el entorno virtual activo:
@@ -58,13 +99,23 @@ Desde la raíz del repositorio, con el entorno virtual activo:
 | Agente con dos herramientas: fase lunar y nubosidad, con su traza de decisión (Bloque 21; la primera vez descarga `de421.bsp`, unos 17 MB, en `data/`) | `python src/agente_con_herramientas.py` |
 | Primer embedding real con Gemini (Bloque 24, demo) | `python src/prueba_embeddings.py` |
 | Chunking de tamaño fijo vs. recursivo, sin llamar a la API (Bloque 24) | `python src/comparar_chunking.py` |
-| Indexa `corpus/` en Chroma (`vectorstore/`) y verifica la reconexión y una búsqueda (Bloque 24) | `python src/indexar_corpus.py` |
+| Indexa `corpus/` en Chroma (`vectorstore/`) y verifica la reconexión y una búsqueda (Bloque 24); reindexar solo embebe lo nuevo (Bloque 25) | `python src/indexar_corpus.py` |
+| Recuperación con citas y respuesta (Bloque 26) | `python src/recuperacion.py` |
+| Evaluación de la recuperación con k=3 y k=5 (Bloque 27; escribe `resultados_evaluacion.txt`) | `python src/evaluacion_recuperacion.py` |
+| Latencia y costo por etapa del RAG (Bloque 28; escribe `registros_latencia_costo.jsonl`) | `python src/registro_rag.py` |
+| Dataset de ejemplos para personalización, validado sin API (Bloque 29) | `python src/dataset_tuning.py` |
+| Decisión de personalización con puntaje (Bloque 30; ver `docs/decision_personalizacion.md`) | `python src/decision.py` |
+| Muestra de 20 respuestas reales para revisar formato (Bloque 30) y 6 del perfil turista/familia | `python src/muestra_formato.py --revisar` · `--confirmar` · `--confirmar --familia` |
+| Logging con `trace_id`, consumo y filtro de inyección (Bloque 31) | `python src/logging_rag.py --demo` |
+| Registro de versiones del prompt y aprobación humana con `interrupt()` (Bloque 32) | `python src/registro_prompts.py --listar` · `python src/grafo_supervision.py --demo` |
+| Matriz de riesgos (Bloque 32; escribe `docs/matriz_riesgos.md`) | `python src/matriz_riesgos.py --exportar` |
+| **Servicio RAG completo (Gate 2)** | `python src/servicio_rag.py "pregunta"` · `--simulado` |
 
 Salida esperada de `consumir_gemini.py`: la respuesta del modelo, la latencia en segundos y el costo estimado en USD. Si la llave falta o es incorrecta, el programa lo informa con un mensaje claro.
 
 ### Pruebas unitarias
 
-Las pruebas usan mocks (no llaman a la API ni gastan cuota) y viven en `src/`, junto al código que prueban, como indica el curso. Se corren desde la raíz del repositorio:
+Las pruebas usan mocks (no llaman a la API ni gastan cuota) y viven en `src/`, junto al código que prueban, como indica el curso. Son más de 400 (`src/test_*.py`, un archivo por módulo); la tabla resume las del Módulo 1 y `src/test_gate2.py` resume el Gate 2. Se corren desde la raíz del repositorio:
 
 ```powershell
 python -m pytest -v
@@ -100,6 +151,20 @@ python -m pytest -v
 │   ├── indexar_corpus.py      # Indexación del corpus en Chroma (Bloque 24)
 │   ├── prueba_embeddings.py   # Primer embedding (Bloque 24, demo)
 │   ├── comparar_chunking.py   # Fijo vs. recursivo (Bloque 24, demo)
+│   ├── limpieza_corpus.py     # Descarta chunks que no ayudan a responder (27-11)
+│   ├── auditar_corpus.py      # Revisa los .txt del corpus antes de indexar (27-11)
+│   ├── recuperacion.py        # Recuperación con citas y tope de fichas de oferentes (Bloque 26)
+│   ├── evaluacion_recuperacion.py  # Precisión y recall de la recuperación (Bloque 27)
+│   ├── registro_rag.py        # Latencia y costo por etapa (Bloque 28)
+│   ├── muestra_formato.py     # Muestras de respuestas reales (Bloque 30 y perfil familia)
+│   ├── logging_rag.py         # Logging con trace_id y filtro de inyección (Bloque 31)
+│   ├── registro_prompts.py    # Versiones del prompt con huella (Bloque 32)
+│   ├── grafo_supervision.py   # Aprobación humana con interrupt() (Bloque 32)
+│   ├── matriz_riesgos.py      # Matriz de riesgos (Bloque 32)
+│   ├── preflight.py           # Chequeo antes de cada push (Bloques 28 y 32)
+│   ├── servicio_rag.py        # Servicio RAG completo (Gate 2)
+│   ├── test_gate2.py          # Los 4 criterios no compensables del Gate 2
+│   ├── verificar_entorno.py   # Revisa paquetes, clave, .gitignore e índice (Gate 2)
 │   ├── test_cliente.py        # Pruebas unitarias (pytest)
 │   ├── test_pipeline_texto.py
 │   ├── test_metricas.py
@@ -323,8 +388,8 @@ Verificado el 24-10-2026 sobre el clon del repositorio:
 | Etapa | Contenido | Estado |
 |---|---|---|
 | Gate 1 | Conexión autenticada, JSON validado, banco de prompts, decisión de modelo, README | Entregado (22-10-2026) |
-| Módulo 2 | Cliente modular con reintentos y backoff, costo por operación, pruebas unitarias, pipeline de texto y métricas | En curso |
-| Gate 2 | Herramientas (fase lunar, visibilidad, pronóstico) y RAG sobre documentos de astroturismo | Planificado |
+| Módulo 2 | Cliente modular con reintentos y backoff, costo por operación, pruebas unitarias, pipeline de texto y métricas; agente con herramientas; RAG, logging y gobernanza | Completado |
+| Gate 2 | Servicio RAG único con citas, trazas sin texto crudo, supervisión humana del prompt y matriz de riesgos | Integrado en el código (27-11-2026) |
 | Gate 3 | Aplicación completa | Planificado |
 
 ## Reglas del programa

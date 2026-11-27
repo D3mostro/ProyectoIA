@@ -30,6 +30,7 @@ import statistics
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from hashlib import sha256
 
 from dotenv import load_dotenv
 
@@ -53,7 +54,7 @@ from indexar_corpus import (
     conectar,
     describir_error_api,
 )
-from recuperacion import SinContexto, formatear_contexto, validar_citas
+from recuperacion import FACTOR_CANDIDATOS, SinContexto, formatear_contexto, seleccionar_chunks, validar_citas
 from registro_prompts import prompt_activo
 
 ARCHIVO_REGISTROS = RAIZ / "registros_latencia_costo.jsonl"
@@ -168,7 +169,8 @@ def _registrar_k(pregunta, vector, info_embed, k, vectorstore, base, enviar, mod
     etapa = "busqueda_vectorial"
     try:
         with medir(tiempos, "busqueda_vectorial"):
-            chunks = vectorstore.similarity_search_by_vector(vector, k=k)
+            candidatos = vectorstore.similarity_search_by_vector(vector, k=k * FACTOR_CANDIDATOS)
+            chunks = seleccionar_chunks(candidatos, pregunta, k)  # tope de fichas de oferentes
         if not chunks:
             raise SinContexto("La búsqueda no trajo chunks: revisa colección y carpeta del índice.")
 
@@ -225,10 +227,49 @@ def _registro_error(base, k, etapa, error, tiempos=None):
     }
 
 
+def huella_texto(texto):
+    """sha256 truncado a 12 caracteres (igual que logging_rag.huella, sin importarlo: ciclo)."""
+    return sha256((texto or "").encode("utf-8")).hexdigest()[:12]
+
+
+def preguntas_de_evaluacion():
+    """Preguntas fijas, escritas a mano para medir (B27, B30 y perfil familia).
+
+    Solo de estas se guarda el texto en los .jsonl versionados: son nuestras, no de un usuario.
+    """
+    from casos_evaluacion import CASOS_EVALUACION as CASOS_B30, PREGUNTAS_FAMILIA
+    from evaluacion_recuperacion import CASOS_EVALUACION as CASOS_B27
+
+    return ({c["consulta"] for c in CASOS_B30} | {c["pregunta"] for c in CASOS_B27}
+            | set(PREGUNTAS_FAMILIA) | set(PREGUNTAS_POR_DEFECTO))
+
+
+def para_guardar(registro, conocidas=None):
+    """Gate 2 (no compensable 3, riesgo R2): una pregunta libre no se guarda en texto.
+
+    Si la pregunta no es de evaluación, la pregunta y la respuesta se reemplazan por largo y
+    huella. Las métricas (tiempos, tokens, costo, citas) quedan igual.
+    """
+    conocidas = preguntas_de_evaluacion() if conocidas is None else conocidas
+    if registro.get("pregunta") in conocidas:
+        return registro
+    limpio = {c: v for c, v in registro.items() if c not in ("pregunta", "respuesta")}
+    limpio["pregunta_chars"] = len(registro.get("pregunta") or "")
+    limpio["pregunta_huella"] = huella_texto(registro.get("pregunta"))
+    if "respuesta" in registro:
+        limpio["respuesta_chars"] = len(registro["respuesta"] or "")
+        limpio["respuesta_huella"] = huella_texto(registro["respuesta"])
+    limpio["texto_omitido"] = True
+    return limpio
+
+
 def guardar_registro(registro, archivo=ARCHIVO_REGISTROS):
-    """Agrega el registro como una línea JSON (JSON Lines): nunca sobrescribe lo anterior."""
+    """Agrega el registro como una línea JSON (JSON Lines): nunca sobrescribe lo anterior.
+
+    Lo escrito pasa por `para_guardar`: el texto de preguntas libres no llega al archivo.
+    """
     with open(archivo, "a", encoding="utf-8") as f:
-        f.write(json.dumps(registro, ensure_ascii=False) + "\n")
+        f.write(json.dumps(para_guardar(registro), ensure_ascii=False) + "\n")
 
 
 def leer_registros(archivo=ARCHIVO_REGISTROS):
